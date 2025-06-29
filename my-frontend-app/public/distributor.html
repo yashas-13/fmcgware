@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributor Dashboard - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <style>
+        body { background: #f8fafc; padding-left: 220px; }
+        @media (max-width: 991.98px) {
+            #sidebar { left: -220px; transition: left 0.3s; }
+            body { padding-left: 0 !important; }
+            #sidebar.active { left: 0; }
+            #sidebar-backdrop { display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); z-index: 1039; }
+        }
+        @media (max-width: 767.98px) {
+            .dashboard-header, .dashboard-card, .card, .table-responsive { border-radius: 0.5rem !important; }
+            .dashboard-header { font-size: 1.1rem; }
+            .summary-icon { font-size: 1.5rem; }
+            .dashboard-card { margin-bottom: 1rem !important; }
+        }
+        .fab {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1050;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #4f8cff;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 4px 16px #0002;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .fab:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <div id="sidebar" class="d-flex flex-column flex-shrink-0 p-3 bg-light position-fixed" style="width: 220px; height: 100vh; left: 0; top: 0; z-index: 1040; box-shadow: 2px 0 8px #0001;">
+        <a href="#" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-decoration-none">
+            <span class="fs-4 fw-bold text-primary"><i class="fa-solid fa-cubes"></i> WMS</span>
+        </a>
+        <hr>
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li class="nav-item"><a href="distributor.html" class="nav-link active"><i class="fa-solid fa-gauge me-2"></i>Dashboard</a></li>
+            <li><a href="products.html" class="nav-link text-dark"><i class="fa fa-box me-2"></i>Products</a></li>
+            <li><a href="batches.html" class="nav-link text-dark"><i class="fa fa-layer-group me-2"></i>Batches</a></li>
+            <li><a href="inventory.html" class="nav-link text-dark"><i class="fa fa-warehouse me-2"></i>Inventory</a></li>
+            <li><a href="users.html" class="nav-link text-dark"><i class="fa fa-users me-2"></i>Users</a></li>
+            <li><a href="alerts.html" class="nav-link text-dark"><i class="fa fa-bell me-2"></i>Alerts</a></li>
+        </ul>
+        <hr>
+        <button id="logoutBtnSidebar" class="btn btn-outline-danger w-100 mt-auto"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+    </div>
+    <!-- Sidebar Backdrop for mobile -->
+    <div id="sidebar-backdrop" style="display:none;"></div>
+    <header class="dashboard-header text-center py-4 mb-4 position-relative">
+        <h1 class="fw-bold mb-0"><i class="fa-solid fa-truck-ramp-box me-2"></i>Distributor Dashboard</h1>
+    </header>
+    <main class="container">
+        <div class="d-flex justify-content-end mb-3">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#batchModal"><i class="fa-solid fa-plus"></i> Add Batch & Inventory</button>
+            <button class="btn btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#dispatchModal"><i class="fa-solid fa-truck"></i> Dispatch Product</button>
+            <a href="dispatch.html" class="btn btn-outline-warning ms-2"><i class="fa fa-truck"></i> Dispatch Products (Approval)</a>
+        </div>
+        <div id="distributor-summary" class="row g-4 mb-4"></div>
+        <div id="distributor-welcome"></div>
+        <div id="distributor-inventory-valuation"></div>
+        <div id="distributor-stock-category"></div>
+        <div id="distributor-expiry"></div>
+        <div id="distributor-fefo"></div>
+        <div id="distributor-loader" class="text-center" style="display:none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        <div class="mb-4">
+            <a class="btn btn-outline-info me-2" href="#" id="viewBatchGroupsBtn"><i class="fa fa-layer-group"></i> View Batch Groups</a>
+            <input type="text" id="batchReportInput" class="form-control d-inline-block w-auto" placeholder="Batch ID for Report">
+            <button class="btn btn-outline-primary ms-2" id="batchReportBtn">Batch Report</button>
+        </div>
+        <div id="batchGroupsSection" class="mb-4"></div>
+        <div id="batchReportSection" class="mb-4"></div>
+        <div id="distributor-advanced-analytics" class="row mb-4"></div>
+        <!-- Modal for Add Batch & Inventory -->
+        <div class="modal fade" id="batchModal" tabindex="-1" aria-labelledby="batchModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="batchForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="batchModalLabel"><i class="fa-solid fa-box"></i> Add Batch & Inventory</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label for="productSelect" class="form-label">Product</label>
+                    <select class="form-select" id="productSelect" required></select>
+                  </div>
+                  <div class="mb-3">
+                    <label for="batchId" class="form-label">Batch ID</label>
+                    <input type="text" class="form-control" id="batchId" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="mfgDate" class="form-label">Manufacturing Date</label>
+                    <input type="date" class="form-control" id="mfgDate" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="expiryDate" class="form-label">Expiry Date</label>
+                    <input type="date" class="form-control" id="expiryDate" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="quantity" class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="quantity" min="0.01" step="0.01" required>
+                    <span id="unitLabel" class="ms-2 text-secondary"></span>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Modal for Dispatch Product -->
+        <div class="modal fade" id="dispatchModal" tabindex="-1" aria-labelledby="dispatchModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="dispatchForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="dispatchModalLabel"><i class="fa-solid fa-truck"></i> Dispatch Products to Retailer (Multi-Product Batch)</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label for="retailerSelect" class="form-label">Retailer</label>
+                    <select class="form-select" id="retailerSelect" required></select>
+                  </div>
+                  <div class="mb-3">
+                    <label for="dispatchBatchSelect" class="form-label">Batch</label>
+                    <select class="form-select" id="dispatchBatchSelect" required></select>
+                  </div>
+                  <div id="dispatchProductsSection"></div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Dispatch</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Toast for feedback -->
+        <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+          <div id="toastMsg" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+              <div class="toast-body"></div>
+              <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+          </div>
+        </div>
+        <!-- Debug panel -->
+        <div id="debugPanel" class="card border-danger mb-3" style="display:none; position:fixed; bottom:1rem; left:1rem; z-index:9999; min-width:350px; max-width:500px; max-height:60vh; overflow:auto;">
+          <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+            <span><i class="fa fa-bug"></i> Debug Panel</span>
+            <button id="closeDebugPanel" class="btn btn-sm btn-light">Close</button>
+          </div>
+          <div class="card-body p-2">
+            <pre id="debugContent" style="font-size:0.9em; white-space:pre-wrap;"></pre>
+          </div>
+        </div>
+        <button id="showDebugBtn" class="btn btn-outline-danger position-fixed" style="bottom:1rem; left:1rem; z-index:9999;"><i class="fa fa-bug"></i> Debug</button>
+        <!-- Add Chart.js CDN -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <div class="row mb-4">
+          <div class="col-md-6 mb-4">
+            <div class="card p-3">
+              <h6 class="fw-bold mb-2"><i class="fa-solid fa-chart-column"></i> Inventory Valuation by Product</h6>
+              <canvas id="valuationChart" height="180"></canvas>
+            </div>
+          </div>
+          <div class="col-md-6 mb-4">
+            <div class="card p-3">
+              <h6 class="fw-bold mb-2"><i class="fa-solid fa-chart-pie"></i> Stock by Category</h6>
+              <canvas id="categoryChart" height="180"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="row mb-4">
+          <div class="col-md-12">
+            <div class="card p-3">
+              <h6 class="fw-bold mb-2"><i class="fa-solid fa-hourglass-end"></i> Near-Expiry Batches</h6>
+              <canvas id="expiryChart" height="120"></canvas>
+            </div>
+          </div>
+        </div>
+        <!-- Modal for Product History -->
+        <div class="modal fade" id="productHistoryModal" tabindex="-1" aria-labelledby="productHistoryModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="productHistoryModalLabel">Product History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" id="productHistoryModalBody">
+                <!-- History will be loaded here -->
+              </div>
+            </div>
+          </div>
+        </div>
+    </main>
+    <footer class="text-center py-4 mt-5 text-secondary small">
+        <i class="fa-solid fa-cube"></i> &copy; 2025 WMS
+    </footer>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/ux.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+        showLoader(true);
+        let productsMap = {};
+        fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(products => {
+                products.forEach(p => { productsMap[p.product_id] = p; });
+                fetch('http://localhost:8000/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
+                    .then(res => res.json())
+                    .then(user => {
+                        if (user.role !== 'Distributor') {
+                            window.location.href = 'retailer.html';
+                            return;
+                        }
+                        document.getElementById('distributor-welcome').innerHTML = `<div class='alert alert-success shadow-sm'><i class='fa-solid fa-user'></i> Welcome, <b>${user.username}</b>!</div>`;
+                        // Inventory Valuation
+                        fetch('http://localhost:8000/api/analytics/inventory-valuation', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(data => {
+                                let html = `<h5 class='mb-3'><i class='fa-solid fa-indian-rupee-sign'></i> Inventory Valuation</h5><div class='table-responsive'><table class='table table-hover align-middle' id='valuationTable'><thead><tr><th>Product</th><th>Category</th><th>Qty</th><th>Price (₹)</th><th>Value (₹)</th><th>Actions</th></tr></thead><tbody>`;
+                                data.breakdown.forEach(row => {
+                                    html += `<tr data-product-id='${row.product_id}'><td>${row.product_name}</td><td>${row.category}</td><td>${row.current_quantity}</td><td>${row.price_inr}</td><td>${row.value}</td><td><button class='btn btn-sm btn-info viewProductHistoryBtn'>View History</button></td></tr>`;
+                                    totalValue += row.value;
+                                });
+                                html += '</tbody></table></div>';
+                                document.getElementById('distributor-inventory-valuation').innerHTML = html;
+                                // Summary card
+                                document.getElementById('distributor-summary').innerHTML = `<div class='col-md-4'><div class='card dashboard-card text-white bg-info mb-3'><div class='card-body text-center'><div class='summary-icon'><i class='fa-solid fa-indian-rupee-sign'></i></div><h5 class='card-title'>Total Inventory Value</h5><p class='card-text fs-4 fw-bold'>₹${totalValue}</p></div></div></div>`;
+                                // --- Chart.js Analytics ---
+                                renderValuationChart(data);
+                            });
+                        // Stock by Category
+                        fetch('http://localhost:8000/api/analytics/stock-by-category', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(data => {
+                                let html = `<h5 class='mb-3'><i class='fa-solid fa-layer-group'></i> Stock by Category</h5><div class='table-responsive'><table class='table table-striped align-middle'><thead><tr><th>Category</th><th>Total Qty</th></tr></thead><tbody>`;
+                                data.forEach(row => {
+                                    html += `<tr><td>${row.category}</td><td>${row.total_quantity}</td></tr>`;
+                                });
+                                html += '</tbody></table></div>';
+                                document.getElementById('distributor-stock-category').innerHTML = html;
+                                // --- Chart.js Analytics ---
+                                renderCategoryChart(data);
+                            });
+                        // Near-Expiry Batches
+                        fetch('http://localhost:8000/api/analytics/near-expiry-batches?days=15', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(batches => {
+                                if (batches.length > 0) {
+                                    let html = `<h5 class='mb-3'><i class='fa-solid fa-triangle-exclamation text-warning'></i> Near-Expiry Batches (next 15 days)</h5><div class='table-responsive'><table class='table table-striped align-middle'><thead><tr><th>Batch ID</th><th>Product</th><th>Expiry</th><th>Qty</th><th>QC</th></tr></thead><tbody>`;
+                                    batches.forEach(b => {
+                                        const prod = productsMap[b.product_id] || {};
+                                        html += `<tr><td>${b.batch_id}</td><td>${prod.product_name || b.product_id}</td><td>${b.expiry_date}</td><td>${b.current_quantity}</td><td>${b.qc_status}</td></tr>`;
+                                    });
+                                    html += '</tbody></table></div>';
+                                    document.getElementById('distributor-expiry').innerHTML = html;
+                                    // Add to summary
+                                    document.getElementById('distributor-summary').innerHTML += `<div class='col-md-4'><div class='card dashboard-card text-white bg-warning mb-3'><div class='card-body text-center'><div class='summary-icon'><i class='fa-solid fa-hourglass-end'></i></div><h5 class='card-title'>Near-Expiry Batches</h5><p class='card-text fs-4 fw-bold'>${batches.length}</p></div></div></div>`;
+                                }
+                                // --- Chart.js Analytics ---
+                                renderExpiryChart(batches);
+                            });
+                        // FEFO Batch Picking Example
+                        fetch('http://localhost:8000/api/pick-batch/fefo?product_id=1&quantity=10', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.picked) {
+                                    let html = `<h5 class='mb-3'><i class='fa-solid fa-arrow-down-short-wide'></i> FEFO Batch Picking (Product 1, Qty 10)</h5><ul class='list-group'>`;
+                                    data.picked.forEach(pick => {
+                                        html += `<li class='list-group-item'>Batch: ${pick.batch_id}, Expiry: ${pick.expiry_date}, Qty: ${pick.pick_quantity}</li>`;
+                                    });
+                                    html += '</ul>';
+                                    document.getElementById('distributor-fefo').innerHTML = html;
+                                } else if (data.error) {
+                                    document.getElementById('distributor-fefo').innerHTML = `<div class='alert alert-warning'>${data.error}</div>`;
+                                }
+                                showLoader(false);
+                            });
+                    });
+            });
+        // Populate product dropdown in modal
+        let productsCache = [];
+        // Ensure this runs after the modal is shown
+        const batchModal = document.getElementById('batchModal');
+        if (batchModal) {
+            batchModal.addEventListener('show.bs.modal', function() {
+                const select = document.getElementById('productSelect');
+                select.innerHTML = '<option value="">Loading...</option>';
+                fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+                    .then(res => res.json())
+                    .then(products => {
+                        productsCache = products;
+                        if (select) {
+                            select.innerHTML = '<option value="">Select product</option>';
+                            products.forEach(p => {
+                                select.innerHTML += `<option value="${p.product_id}" data-expiry="${p.expiry_period_days}" data-unit="${p.measurement_unit}" data-packsize="${p.standard_pack_size}">${p.product_name}</option>`;
+                            });
+                        }
+                    })
+                    .catch(() => {
+                        if (select) select.innerHTML = '<option value="">Failed to load products</option>';
+                    });
+            });
+        }
+        // --- Auto-calculate expiry date and show unit/pack size ---
+        const productSelect = document.getElementById('productSelect');
+        const mfgDateInput = document.getElementById('mfgDate');
+        const expiryDateInput = document.getElementById('expiryDate');
+        const quantityInput = document.getElementById('quantity');
+        // Add unit/pack size display
+        let unitLabel = document.getElementById('unitLabel');
+        if (!unitLabel && quantityInput) {
+            unitLabel = document.createElement('span');
+            unitLabel.id = 'unitLabel';
+            unitLabel.className = 'ms-2 text-secondary';
+            quantityInput.parentNode.appendChild(unitLabel);
+        }
+        function updateExpiryAndUnit() {
+            const selected = productSelect.options[productSelect.selectedIndex];
+            const expiryDays = parseInt(selected.getAttribute('data-expiry'));
+            const mfgDate = mfgDateInput.value;
+            const unit = selected.getAttribute('data-unit') || '';
+            const packsize = selected.getAttribute('data-packsize') || '';
+            if (unitLabel) {
+                unitLabel.textContent = unit ? `(${packsize} ${unit})` : '';
+            }
+            if (expiryDays && mfgDate) {
+                const mfg = new Date(mfgDate);
+                mfg.setDate(mfg.getDate() + expiryDays);
+                const yyyy = mfg.getFullYear();
+                const mm = String(mfg.getMonth() + 1).padStart(2, '0');
+                const dd = String(mfg.getDate()).padStart(2, '0');
+                expiryDateInput.value = `${yyyy}-${mm}-${dd}`;
+            }
+        }
+        if (productSelect && mfgDateInput && expiryDateInput) {
+            productSelect.addEventListener('change', updateExpiryAndUnit);
+            mfgDateInput.addEventListener('input', updateExpiryAndUnit);
+        }
+        // Handle batch form submit
+        const batchForm = document.getElementById('batchForm');
+        if (batchForm) {
+            batchForm.onsubmit = async function(e) {
+                e.preventDefault();
+                const token = localStorage.getItem('access_token');
+                const product_id = document.getElementById('productSelect').value;
+                const batch_id = document.getElementById('batchId').value.trim();
+                const mfg_date = document.getElementById('mfgDate').value;
+                const expiry_date = document.getElementById('expiryDate').value;
+                const quantity = parseFloat(document.getElementById('quantity').value);
+                // Validation
+                if (!product_id || !batch_id || !mfg_date || !expiry_date || isNaN(quantity) || quantity <= 0) {
+                    showToast('Please fill all fields with valid values.', true);
+                    return;
+                }
+                if (new Date(expiry_date) <= new Date(mfg_date)) {
+                    showToast('Expiry date must be after manufacturing date.', true);
+                    return;
+                }
+                // Create batch
+                const batchRes = await fetch('http://localhost:8000/api/batches', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({
+                        batch_id,
+                        product_id: parseInt(product_id),
+                        manufacturing_date: mfg_date,
+                        received_date: mfg_date,
+                        expiry_date,
+                        initial_quantity: quantity,
+                        current_quantity: quantity,
+                        owner_type: 'Distributor',
+                        owner_id: 1,
+                        qc_status: 'Approved'
+                    })
+                });
+                if (batchRes.ok) {
+                    // Add to inventory
+                    const invRes = await fetch('http://localhost:8000/api/inventory', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                        body: JSON.stringify({
+                            product_id: parseInt(product_id),
+                            batch_id,
+                            location: 'warehouse',
+                            current_quantity: quantity
+                        })
+                    });
+                    if (invRes.ok) {
+                        showToast('Batch and inventory added!');
+                        batchForm.reset();
+                        var modal = bootstrap.Modal.getInstance(document.getElementById('batchModal'));
+                        modal.hide();
+                        setTimeout(() => window.location.reload(), 1200);
+                    } else {
+                        showToast('Failed to add inventory.', true);
+                    }
+                } else {
+                    const err = await batchRes.json();
+                    showToast('Failed to add batch: ' + (err.detail || 'Unknown error'), true);
+                }
+            };
+        }
+        // Expiry auto-calc logic for Add Batch modal
+        function updateBatchExpiryPreview() {
+            const productSelect = document.querySelector('#batchModal .productSelect');
+            const mfgDateInput = document.getElementById('mfgDate');
+            const expiryInput = document.getElementById('expiryDate');
+            if (!productSelect || !mfgDateInput || !expiryInput) return;
+            const selected = productSelect.options[productSelect.selectedIndex];
+            const expiryDays = parseInt(selected.getAttribute('data-expiry'));
+            const mfgDate = mfgDateInput.value;
+            if (expiryDays && mfgDate) {
+                const mfg = new Date(mfgDate);
+                mfg.setDate(mfg.getDate() + expiryDays);
+                const yyyy = mfg.getFullYear();
+                const mm = String(mfg.getMonth() + 1).padStart(2, '0');
+                const dd = String(mfg.getDate()).padStart(2, '0');
+                const expiryDate = `${yyyy}-${mm}-${dd}`;
+                expiryInput.value = expiryDate;
+            }
+        }
+        document.getElementById('mfgDate').addEventListener('input', updateBatchExpiryPreview);
+        document.querySelector('#batchModal .productSelect').addEventListener('change', updateBatchExpiryPreview);
+        // On form submit, always send expiry value
+        // --- Dispatch Modal Logic ---
+        const dispatchModal = document.getElementById('dispatchModal');
+        const retailerSelect = document.getElementById('retailerSelect');
+        const dispatchBatchSelect = document.getElementById('dispatchBatchSelect');
+        const dispatchQuantityInput = document.getElementById('dispatchQuantity');
+        let dispatchUnitLabel = document.getElementById('dispatchUnitLabel');
+        if (!dispatchUnitLabel && dispatchQuantityInput) {
+            dispatchUnitLabel = document.createElement('span');
+            dispatchUnitLabel.id = 'dispatchUnitLabel';
+            dispatchUnitLabel.className = 'ms-2 text-secondary';
+            dispatchQuantityInput.parentNode.appendChild(dispatchUnitLabel);
+        }
+        let allRetailers = [];
+        let allInventory = [];
+        let allProducts = [];
+        if (dispatchModal) {
+            dispatchModal.addEventListener('show.bs.modal', function() {
+                // Fetch retailers
+                fetch('http://localhost:8000/api/users', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') } })
+                    .then(res => res.json())
+                    .then(users => {
+                        allRetailers = users.filter(u => u.role === 'Retailer');
+                        retailerSelect.innerHTML = '<option value="">Select retailer</option>';
+                        allRetailers.forEach(r => {
+                            retailerSelect.innerHTML += `<option value="${r.user_id}">${r.username} (${r.email})</option>`;
+                        });
+                    })
+                    .catch(() => {
+                        retailerSelect.innerHTML = '<option value="">Failed to load retailers</option>';
+                    });
+                // Fetch inventory and products in parallel
+                Promise.all([
+                    fetch('http://localhost:8000/api/inventory', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') } }).then(res => res.ok ? res.json() : []),
+                    fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') } }).then(res => res.ok ? res.json() : [])
+                ]).then(([inventory, products]) => {
+                    allInventory = Array.isArray(inventory) ? inventory : [];
+                    allProducts = Array.isArray(products) ? products : [];
+                    // Populate batch dropdown with batches that have at least one product in warehouse
+                    const batchIds = [...new Set(allInventory.filter(i => i.location === 'warehouse').map(i => i.batch_id))];
+                    dispatchBatchSelect.innerHTML = '<option value="">Select batch</option>';
+                    batchIds.forEach(batchId => {
+                        dispatchBatchSelect.innerHTML += `<option value="${batchId}">${batchId}</option>`;
+                    });
+                    document.getElementById('dispatchProductsSection').innerHTML = '';
+                }).catch((err) => {
+                    dispatchBatchSelect.innerHTML = '<option value="">Failed to load batches</option>';
+                    document.getElementById('dispatchProductsSection').innerHTML = '';
+                    console.error('Error loading inventory/products:', err);
+                });
+            });
+            // When batch changes, show all products in that batch
+            dispatchBatchSelect.addEventListener('change', function() {
+                const batchId = dispatchBatchSelect.value;
+                const batchProducts = allInventory.filter(i => i.batch_id === batchId && i.location === 'warehouse');
+                let html = '';
+                batchProducts.forEach(i => {
+                    const prod = allProducts.find(p => p.product_id === i.product_id) || {};
+                    html += `<div class='mb-3'><label class='form-label'>${prod.product_name || i.product_id} (Available: ${i.current_quantity})</label><input type='number' class='form-control dispatchQtyInput' data-product-id='${i.product_id}' max='${i.current_quantity}' min='0' step='0.01' placeholder='Qty to dispatch'></div>`;
+                });
+                document.getElementById('dispatchProductsSection').innerHTML = html;
+            });
+            // Handle dispatch form submit
+            const dispatchForm = document.getElementById('dispatchForm');
+            if (dispatchForm) {
+                dispatchForm.onsubmit = async function(e) {
+                    e.preventDefault();
+                    const retailer_id = retailerSelect.value;
+                    const batch_id = dispatchBatchSelect.value;
+                    const qtyInputs = document.querySelectorAll('.dispatchQtyInput');
+                    let dispatches = [];
+                    qtyInputs.forEach(input => {
+                        const product_id = input.getAttribute('data-product-id');
+                        const quantity = parseFloat(input.value);
+                        if (product_id && !isNaN(quantity) && quantity > 0) {
+                            dispatches.push({ product_id: parseInt(product_id), quantity });
+                        }
+                    });
+                    if (!retailer_id || !batch_id || !dispatches.length) {
+                        showToast('Please fill all fields and enter at least one product quantity.', true);
+                        return;
+                    }
+                    showLoader(true);
+                    // Dispatch all products in parallel
+                    Promise.all(dispatches.map(d =>
+                        fetch('http://localhost:8000/api/dispatch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('access_token') },
+                            body: JSON.stringify({
+                                retailer_id: parseInt(retailer_id),
+                                product_id: d.product_id,
+                                batch_id: batch_id,
+                                quantity: d.quantity
+                            })
+                        })
+                    ))
+                    .then(() => {
+                        showToast('Products dispatched successfully!', false);
+                        dispatchForm.reset();
+                        var modal = bootstrap.Modal.getInstance(dispatchModal);
+                        modal.hide();
+                        setTimeout(() => window.location.reload(), 1200);
+                    })
+                    .catch(() => showToast('Dispatch failed (network error).', true))
+                    .finally(() => showLoader(false));
+                };
+            }
+        }
+        // Debug panel logic
+        const debugPanel = document.getElementById('debugPanel');
+        const debugContent = document.getElementById('debugContent');
+        const showDebugBtn = document.getElementById('showDebugBtn');
+        const closeDebugPanel = document.getElementById('closeDebugPanel');
+        if (showDebugBtn && debugPanel && debugContent && closeDebugPanel) {
+            showDebugBtn.onclick = function() {
+                debugPanel.style.display = 'block';
+                showDebugBtn.style.display = 'none';
+                debugContent.textContent = 'Loading...';
+                const token = localStorage.getItem('access_token');
+                fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+                    .then(res => res.json().then(data => ({status: res.status, data})))
+                    .then((result) => {
+                        debugContent.textContent = 'API /products status: ' + result.status + '\n' + JSON.stringify(result.data, null, 2);
+                    })
+                    .catch(err => {
+                        debugContent.textContent = 'API /products error: ' + err;
+                    });
+            };
+            closeDebugPanel.onclick = function() {
+                debugPanel.style.display = 'none';
+                showDebugBtn.style.display = 'block';
+            };
+        }
+        // Batch Groups
+        document.getElementById('viewBatchGroupsBtn').onclick = function(e) {
+            e.preventDefault();
+            fetch('http://localhost:8000/api/batch-groups', { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(groups => {
+                    let html = '<h5>Batch Groups</h5>';
+                    groups.forEach(g => {
+                        html += `<div class='card mb-2'><div class='card-header'>Batch: <b>${g.batch_id}</b> | Mfg: ${g.manufacturing_date || ''} | Exp: ${g.expiry_date || ''}</div><div class='card-body'><ul>`;
+                        g.products.forEach(p => {
+                            const prod = productsMap[p.product_id] || {};
+                            html += `<li>Product: ${prod.product_name || p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                        });
+                        html += '</ul></div></div>';
+                    });
+                    document.getElementById('batchGroupsSection').innerHTML = html;
+                });
+        };
+        // Batch Report
+        document.getElementById('batchReportBtn').onclick = function() {
+            const batchId = document.getElementById('batchReportInput').value.trim();
+            if (!batchId) return showToast('Enter a batch ID', true);
+            fetch('http://localhost:8000/api/batch-report/' + batchId, { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(report => {
+                    let html = `<h5>Batch Report for <b>${report.batch_id}</b></h5>`;
+                    html += '<b>Products:</b><ul>';
+                    report.products.forEach(p => {
+                        const prod = productsMap[p.product_id] || {};
+                        html += `<li>Product: ${prod.product_name || p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                    });
+                    html += '</ul><b>Inventory:</b><ul>';
+                    report.inventory.forEach(i => {
+                        const prod = productsMap[i.product_id] || {};
+                        html += `<li>Product: ${prod.product_name || i.product_id}, Location: ${i.location}, Qty: ${i.current_quantity}</li>`;
+                    });
+                    html += '</ul><b>Dispatches:</b><ul>';
+                    report.dispatches.forEach(d => {
+                        const prod = productsMap[d.product_id] || {};
+                        html += `<li>Product: ${prod.product_name || d.product_id}, Retailer: ${d.location}, Qty: ${d.current_quantity}</li>`;
+                    });
+                    html += '</ul>';
+                    document.getElementById('batchReportSection').innerHTML = html;
+                });
+        };
+        // --- Chart.js Analytics ---
+        let valuationChart, categoryChart, expiryChart;
+        function renderValuationChart(data) {
+          const ctx = document.getElementById('valuationChart').getContext('2d');
+          if (valuationChart) valuationChart.destroy();
+          valuationChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: data.breakdown.map(row => row.product_name),
+              datasets: [{
+                label: 'Value (₹)',
+                data: data.breakdown.map(row => row.value),
+                backgroundColor: '#4f8cff',
+              }]
+            },
+            options: {responsive: true, plugins: {legend: {display: false}}}
+          });
+        }
+        function renderCategoryChart(data) {
+          const ctx = document.getElementById('categoryChart').getContext('2d');
+          if (categoryChart) categoryChart.destroy();
+          categoryChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: data.map(row => row.category),
+              datasets: [{
+                label: 'Total Qty',
+                data: data.map(row => row.total_quantity),
+                backgroundColor: ['#4f8cff','#38b6ff','#ffc107','#28a745','#dc3545','#6f42c1'],
+              }]
+            },
+            options: {responsive: true}
+          });
+        }
+        function renderExpiryChart(batches) {
+          const ctx = document.getElementById('expiryChart').getContext('2d');
+          if (expiryChart) expiryChart.destroy();
+          expiryChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: batches.map(b => b.batch_id),
+              datasets: [{
+                label: 'Qty',
+                data: batches.map(b => b.current_quantity),
+                backgroundColor: '#ffc107',
+              }]
+            },
+            options: {responsive: true, plugins: {legend: {display: false}}}
+          });
+        }
+        // --- Chart.js Responsive Resize ---
+        window.addEventListener('resize', () => {
+          if (valuationChart) valuationChart.resize();
+          if (categoryChart) categoryChart.resize();
+          if (expiryChart) expiryChart.resize();
+        });
+        // --- Swipe Gesture for Card Navigation (Mobile) ---
+        let touchStartX = 0, touchEndX = 0;
+        const summaryRow = document.getElementById('distributor-summary');
+        if (summaryRow) {
+          summaryRow.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; });
+          summaryRow.addEventListener('touchend', e => {
+            touchEndX = e.changedTouches[0].screenX;
+            if (touchEndX < touchStartX - 50) summaryRow.scrollBy({left: 200, behavior: 'smooth'});
+            if (touchEndX > touchStartX + 50) summaryRow.scrollBy({left: -200, behavior: 'smooth'});
+          });
+        }
+        // --- Table Sort/Filter Controls ---
+        function addTableSortFilter(tableId) {
+          const table = document.getElementById(tableId);
+          if (!table) return;
+          const thead = table.querySelector('thead');
+          if (!thead) return;
+          // Add filter row
+          if (!table.querySelector('.filter-row')) {
+            const filterRow = document.createElement('tr');
+            filterRow.className = 'filter-row';
+            Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+              const th = document.createElement('th');
+              if (cell.textContent.trim() !== '') {
+                const input = document.createElement('input');
+                input.className = 'form-control form-control-sm';
+                input.placeholder = 'Filter';
+                input.oninput = function() {
+                  const val = this.value.toLowerCase();
+                  Array.from(table.tBodies[0].rows).forEach(row => {
+                    row.style.display = row.cells[idx].textContent.toLowerCase().includes(val) ? '' : 'none';
+                  });
+                };
+                th.appendChild(input);
+              }
+              filterRow.appendChild(th);
+            });
+            thead.appendChild(filterRow);
+          }
+          // Add sort on click
+          Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+            cell.style.cursor = 'pointer';
+            cell.onclick = function() {
+              const rows = Array.from(table.tBodies[0].rows);
+              const asc = !cell.classList.contains('sorted-asc');
+              rows.sort((a, b) => {
+                const v1 = a.cells[idx].textContent.trim();
+                const v2 = b.cells[idx].textContent.trim();
+                return asc ? v1.localeCompare(v2, undefined, {numeric:true}) : v2.localeCompare(v1, undefined, {numeric:true});
+              });
+              rows.forEach(r => table.tBodies[0].appendChild(r));
+              Array.from(thead.rows[0].cells).forEach(c => c.classList.remove('sorted-asc', 'sorted-desc'));
+              cell.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+            };
+          });
+        }
+        // Call after rendering tables
+        setTimeout(() => {
+          addTableSortFilter('distributor-inventory-valuation');
+          addTableSortFilter('distributor-stock-category');
+          addTableSortFilter('distributor-expiry');
+        }, 1200);
+        // Attach View History event listeners after rendering table
+        setTimeout(() => {
+            document.querySelectorAll('.viewProductHistoryBtn').forEach(btn => {
+                btn.onclick = function() {
+                    const row = btn.closest('tr');
+                    const productId = row.getAttribute('data-product-id');
+                    fetch(`http://localhost:8000/api/products/${productId}/history`, { headers: { 'Authorization': 'Bearer ' + token } })
+                        .then(res => res.json())
+                        .then(history => {
+                            let html = '<ul class="list-group">';
+                            if (history && history.length) {
+                                history.forEach(h => {
+                                    html += `<li class='list-group-item'><b>${h.timestamp || ''}</b>: ${h.action || ''} - ${h.details || ''}</li>`;
+                                });
+                            } else {
+                                html += '<li class="list-group-item">No history found.</li>';
+                            }
+                            html += '</ul>';
+                            document.getElementById('productHistoryModalBody').innerHTML = html;
+                            var modal = new bootstrap.Modal(document.getElementById('productHistoryModal'));
+                            modal.show();
+                        });
+                };
+            });
+        }, 1500);
+        // After existing analytics rendering, add advanced analytics
+        function renderAdvancedAnalytics() {
+          // --- Inventory Trends ---
+          fetch('http://localhost:8000/api/analytics/inventory-valuation', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') } })
+            .then(res => res.json())
+            .then(data => {
+              // For demo, simulate monthly trend from breakdown (real: backend should provide time series)
+              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+              const values = months.map((m, i) => data.breakdown.reduce((sum, row) => sum + (row.value || 0) * (1 + 0.02 * i), 0));
+              const trendsCtx = document.createElement('canvas');
+              trendsCtx.id = 'trendsChart';
+              document.getElementById('distributor-advanced-analytics').appendChild(trendsCtx);
+              new Chart(trendsCtx, {
+                type: 'line',
+                data: {
+                  labels: months,
+                  datasets: [{
+                    label: 'Inventory Value (₹)',
+                    data: values,
+                    borderColor: '#4f8cff',
+                    fill: false
+                  }]
+                },
+                options: {responsive: true}
+              });
+            });
+          // --- Profit Estimation ---
+          fetch('http://localhost:8000/api/batch-report/ALL', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') } })
+            .then(res => res.json())
+            .then(report => {
+              // Estimate profit as sum of (sold qty * price) for all products (demo logic)
+              let profit = 0;
+              if (report && report.dispatches) {
+                report.dispatches.forEach(d => {
+                  const prod = window.productsMap ? window.productsMap[d.product_id] : null;
+                  if (prod) profit += (d.current_quantity || 0) * (prod.price_inr || 0);
+                });
+              }
+              const profitDiv = document.createElement('div');
+              profitDiv.className = 'col-md-6 mb-4';
+              profitDiv.innerHTML = `<div class='card p-3'><h6 class='fw-bold mb-2'><i class='fa-solid fa-coins'></i> Estimated Profit</h6><div class='fs-4 fw-bold text-success'>₹ ${profit.toLocaleString()}</div></div>`;
+              document.getElementById('distributor-advanced-analytics').appendChild(profitDiv);
+            });
+          // --- Retailer-level Analytics ---
+          fetch('http://localhost:8000/api/inventory', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') } })
+            .then(res => res.json())
+            .then(inventory => {
+              // Aggregate value by retailer
+              const retailerTotals = {};
+              inventory.forEach(i => {
+                if (i.location && i.location.startsWith('retailer_')) {
+                  retailerTotals[i.location] = (retailerTotals[i.location] || 0) + (i.current_quantity || 0);
+                }
+              });
+              const retailerDiv = document.createElement('div');
+              retailerDiv.className = 'col-md-6 mb-4';
+              retailerDiv.innerHTML = `<div class='card p-3'><h6 class='fw-bold mb-2'><i class='fa-solid fa-store'></i> Top Retailers</h6><ul class='list-group'>${Object.entries(retailerTotals).map(([k, v]) => `<li class='list-group-item'>${k}: ${v}</li>`).join('')}</ul></div>`;
+              document.getElementById('distributor-advanced-analytics').appendChild(retailerDiv);
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+          setTimeout(renderAdvancedAnalytics, 2000);
+        });
+    </script>
+    <!-- Hamburger for mobile -->
+    <button id="sidebarToggle" class="btn btn-primary d-lg-none position-fixed" style="top:1rem; left:1rem; z-index:1051;"><i class="fa fa-bars"></i></button>
+    <!-- Floating Action Button for Add Batch/Inventory -->
+    <button class="fab d-lg-none" id="fabAdd" title="Add Batch & Inventory"><i class="fa fa-plus"></i></button>
+    <script>
+    // Sidebar mobile toggle
+    const sidebar = document.getElementById('sidebar');
+    const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    if (sidebar && sidebarBackdrop && sidebarToggle) {
+        sidebarToggle.onclick = function() {
+            sidebar.classList.toggle('active');
+            sidebarBackdrop.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+        };
+        sidebarBackdrop.onclick = function() {
+            sidebar.classList.remove('active');
+            sidebarBackdrop.style.display = 'none';
+        };
+    }
+    // FAB for Add Batch/Inventory
+    const fabAdd = document.getElementById('fabAdd');
+    if (fabAdd) {
+        fabAdd.onclick = function() {
+            const modal = new bootstrap.Modal(document.getElementById('batchModal'));
+            modal.show();
+        };
+    }
+    </script>
+</body>
+</html>

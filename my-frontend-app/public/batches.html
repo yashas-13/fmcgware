@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batches - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container py-4">
+        <h2 class="mb-4">Batches</h2>
+        <div id="batchTable"></div>
+        <div class="mb-4">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#batchModal"><i class="fa fa-plus"></i> Add Batch</button>
+        </div>
+        <!-- Modal for Add Batch (Multi-Product) -->
+        <div class="modal fade" id="batchModal" tabindex="-1" aria-labelledby="batchModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="batchForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="batchModalLabel"><i class="fa fa-box"></i> Add Batch (Multi-Product)</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label for="batchId" class="form-label">Batch ID</label>
+                    <input type="text" class="form-control" id="batchId" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="mfgDate" class="form-label">Manufacturing Date</label>
+                    <input type="date" class="form-control" id="mfgDate" required>
+                  </div>
+                  <div id="multiProductRows"></div>
+                  <button type="button" class="btn btn-link" id="addProductRowBtn">+ Add Product</button>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Edit Batch Modal -->
+        <div class="modal fade" id="editBatchModal" tabindex="-1" aria-labelledby="editBatchModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="editBatchForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="editBatchModalLabel"><i class="fa fa-edit"></i> Edit Batch</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <input type="hidden" id="editBatchId">
+                  <div class="mb-3">
+                    <label for="editBatchProductSelect" class="form-label">Product</label>
+                    <select class="form-select" id="editBatchProductSelect" required></select>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editBatchMfgDate" class="form-label">Manufacturing Date</label>
+                    <input type="date" class="form-control" id="editBatchMfgDate" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editBatchExpiryDate" class="form-label">Expiry Date</label>
+                    <input type="date" class="form-control" id="editBatchExpiryDate" required>
+                    <span id="editBatchExpiryPreview" class="small text-secondary ms-2"></span>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editBatchQuantity" class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="editBatchQuantity" min="0.01" step="0.01" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editBatchQC" class="form-label">QC Status</label>
+                    <input type="text" class="form-control" id="editBatchQC">
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Batch History Modal -->
+        <div class="modal fade" id="batchHistoryModal" tabindex="-1" aria-labelledby="batchHistoryModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="batchHistoryModalLabel">Batch History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" id="batchHistoryModalBody">
+                <!-- History will be loaded here -->
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Modal to show assigned UIDs after batch creation -->
+        <div class="modal fade" id="uidsModal" tabindex="-1" aria-labelledby="uidsModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="uidsModalLabel">Assigned Unit UIDs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" id="uidsModalBody">
+                <!-- UIDs will be loaded here -->
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mb-4">
+            <a class="btn btn-outline-info me-2" href="#" id="viewBatchGroupsBtn"><i class="fa fa-layer-group"></i> View Batch Groups</a>
+            <input type="text" id="batchReportInput" class="form-control d-inline-block w-auto" placeholder="Batch ID for Report">
+            <button class="btn btn-outline-primary ms-2" id="batchReportBtn">Batch Report</button>
+        </div>
+        <div id="batchGroupsSection" class="mb-4"></div>
+        <div id="batchReportSection" class="mb-4"></div>
+        <a href="distributor.html" class="btn btn-secondary mt-3">Back to Dashboard</a>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        let productsMap = {};
+        let productsList = [];
+        fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(products => {
+                productsList = products;
+                products.forEach(p => { productsMap[p.product_id] = p; });
+                // Populate product dropdown from master data
+                const select = document.getElementById('productSelect');
+                if (select) {
+                    select.innerHTML = '<option value="">Select product</option>';
+                    products.forEach(p => {
+                        select.innerHTML += `<option value="${p.product_id}" data-expiry="${p.expiry_period_days}">${p.product_name}</option>`;
+                    });
+                }
+                // Fetch and render batches
+                fetch('http://localhost:8000/api/batch-groups', { headers: { 'Authorization': 'Bearer ' + token } })
+                    .then(res => res.json())
+                    .then(groups => {
+                        let html = '<table class="table table-bordered"><thead><tr><th>Batch ID</th><th>Products</th><th>Mfg Date</th><th>Expiry</th><th>Qty</th><th>Owner</th><th>QC</th><th>Actions</th></tr></thead><tbody>';
+                        groups.forEach(g => {
+                            // Aggregate product info for display
+                            const productNames = g.products.map(p => (productsMap[p.product_id] ? productsMap[p.product_id].product_name : p.product_id)).join('<br>');
+                            const quantities = g.products.map(p => p.current_quantity).join('<br>');
+                            const qcStatuses = g.products.map(p => p.qc_status || '').join('<br>');
+                            html += `<tr data-batch-id="${g.batch_id}"><td>${g.batch_id}</td><td>${productNames}</td><td>${g.manufacturing_date || ''}</td><td>${g.expiry_date || ''}</td><td>${quantities}</td><td>${g.owner_type}</td><td>${qcStatuses}</td><td><button class='btn btn-sm btn-primary editBatchBtn'>Edit</button> <button class='btn btn-sm btn-danger deleteBatchBtn'>Delete</button> <button class='btn btn-sm btn-info viewBatchHistoryBtn'>View History</button></td></tr>`;
+                        });
+                        html += '</tbody></table>';
+                        document.getElementById('batchTable').innerHTML = html;
+                        // Attach CRUD event listeners
+                        document.querySelectorAll('.editBatchBtn').forEach(btn => {
+                            btn.onclick = function() {
+                                const row = btn.closest('tr');
+                                const batchId = row.getAttribute('data-batch-id');
+                                fetch('http://localhost:8000/api/batches', { headers: { 'Authorization': 'Bearer ' + token } })
+                                  .then(res => res.json())
+                                  .then(batches => {
+                                    const batch = Array.isArray(batches) ? batches.find(b => b.batch_id == batchId) : null;
+                                    if (!batch) return;
+                                    document.getElementById('editBatchId').value = batch.batch_id;
+                                    // Populate product dropdown
+                                    const editProductSelect = document.getElementById('editBatchProductSelect');
+                                    editProductSelect.innerHTML = '<option value="">Select Product</option>' + Object.values(productsMap).map(p => `<option value="${p.product_id}" data-expiry="${p.expiry_period_days}"${p.product_id==batch.product_id?' selected':''}>${p.product_name}</option>`).join('');
+                                    document.getElementById('editBatchMfgDate').value = batch.manufacturing_date || '';
+                                    document.getElementById('editBatchExpiryDate').value = batch.expiry_date || '';
+                                    document.getElementById('editBatchQuantity').value = batch.current_quantity;
+                                    document.getElementById('editBatchQC').value = batch.qc_status || '';
+                                    updateEditBatchExpiryPreview();
+                                    var modal = new bootstrap.Modal(document.getElementById('editBatchModal'));
+                                    modal.show();
+                                  });
+                            };
+                        });
+                        document.querySelectorAll('.deleteBatchBtn').forEach(btn => {
+                            btn.onclick = async function() {
+                                const row = btn.closest('tr');
+                                const batchId = row.getAttribute('data-batch-id');
+                                if (confirm('Are you sure you want to delete batch ' + batchId + '?')) {
+                                    const res = await fetch('http://localhost:8000/api/batches/' + batchId, {
+                                        method: 'DELETE',
+                                        headers: { 'Authorization': 'Bearer ' + token }
+                                    });
+                                    if (res.ok) {
+                                        row.remove();
+                                    } else {
+                                        alert('Failed to delete batch.');
+                                    }
+                                }
+                            };
+                        });
+                        document.querySelectorAll('.viewBatchHistoryBtn').forEach(btn => {
+                            btn.onclick = function() {
+                                const row = btn.closest('tr');
+                                const batchId = row.getAttribute('data-batch-id');
+                                fetch(`http://localhost:8000/api/batches/${batchId}/history`, { headers: { 'Authorization': 'Bearer ' + token } })
+                                    .then(res => res.json())
+                                    .then(history => {
+                                        let html = '<ul class="list-group">';
+                                        if (history && history.length) {
+                                            history.forEach(h => {
+                                                html += `<li class='list-group-item'><b>${h.timestamp || ''}</b>: ${h.action || ''} - ${h.details || ''}</li>`;
+                                            });
+                                        } else {
+                                            html += '<li class="list-group-item">No history found.</li>';
+                                        }
+                                        html += '</ul>';
+                                        document.getElementById('batchHistoryModalBody').innerHTML = html;
+                                        var modal = new bootstrap.Modal(document.getElementById('batchHistoryModal'));
+                                        modal.show();
+                                    });
+                            };
+                        });
+                    });
+                // Track dispatched products by batch in table
+                fetch('http://localhost:8000/api/inventory', { headers: { 'Authorization': 'Bearer ' + token } })
+                    .then(res => res.json())
+                    .then(inventory => {
+                        let batchDispatched = {};
+                        inventory.forEach(i => {
+                            if (i.location.startsWith('retailer_')) {
+                                batchDispatched[i.batch_id] = (batchDispatched[i.batch_id] || 0) + i.current_quantity;
+                            }
+                        });
+                        document.querySelectorAll('#batchTable tbody tr').forEach(row => {
+                            const batchId = row.children[0].textContent;
+                            const dispatched = batchDispatched[batchId] || 0;
+                            row.innerHTML += `<td>${dispatched}</td>`;
+                        });
+                        // Add header if not present
+                        const ths = document.querySelectorAll('#batchTable thead th');
+                        if (ths.length < 8) {
+                            document.querySelector('#batchTable thead tr').innerHTML += '<th>Dispatched Qty</th>';
+                        }
+                    });
+                // Batch Groups
+                document.getElementById('viewBatchGroupsBtn').onclick = function(e) {
+                    e.preventDefault();
+                    fetch('http://localhost:8000/api/batch-groups', { headers: { 'Authorization': 'Bearer ' + token } })
+                        .then(res => res.json())
+                        .then(groups => {
+                            let html = '<h5>Batch Groups</h5>';
+                            groups.forEach(g => {
+                                html += `<div class='card mb-2'><div class='card-header'>Batch: <b>${g.batch_id}</b> | Mfg: ${g.manufacturing_date || ''} | Exp: ${g.expiry_date || ''}</div><div class='card-body'><ul>`;
+                                g.products.forEach(p => {
+                                    const prod = productsMap[p.product_id] || {};
+                                    html += `<li>Product: ${prod.product_name || p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                                });
+                                html += '</ul></div></div>';
+                            });
+                            document.getElementById('batchGroupsSection').innerHTML = html;
+                        });
+                };
+                // Batch Report
+                document.getElementById('batchReportBtn').onclick = function() {
+                    const batchId = document.getElementById('batchReportInput').value.trim();
+                    if (!batchId) return showWmsToast('Enter a batch ID', 'warning');
+                    fetch('http://localhost:8000/api/batch-report/' + batchId, { headers: { 'Authorization': 'Bearer ' + token } })
+                        .then(res => res.json())
+                        .then(report => {
+                            let html = `<h5>Batch Report for <b>${report.batch_id}</b></h5>`;
+                            html += '<b>Products:</b><ul>';
+                            report.products.forEach(p => {
+                                const prod = productsMap[p.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                            });
+                            html += '</ul><b>Inventory:</b><ul>';
+                            report.inventory.forEach(i => {
+                                const prod = productsMap[i.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || i.product_id}, Location: ${i.location}, Qty: ${i.current_quantity}</li>`;
+                            });
+                            html += '</ul><b>Dispatches:</b><ul>';
+                            report.dispatches.forEach(d => {
+                                const prod = productsMap[d.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || d.product_id}, Retailer: ${d.location}, Qty: ${d.current_quantity}</li>`;
+                            });
+                            html += '</ul>';
+                            document.getElementById('batchReportSection').innerHTML = html;
+                        });
+                };
+                // Multi-product batch logic
+                function addProductRow() {
+                    const row = document.createElement('div');
+                    row.className = 'row g-2 mb-2 product-row';
+                    row.innerHTML = `<div class="col-6"><select class="form-select productSelect" required><option value="">Select product</option>${productsList.map(p => `<option value="${p.product_id}" data-expiry="${p.expiry_period_days}">${p.product_name}</option>`).join('')}</select></div><div class="col-4"><input type="number" class="form-control quantityInput" min="0.01" step="0.01" placeholder="Quantity" required></div><div class="col-2"><button type="button" class="btn btn-danger btn-sm removeProductRowBtn">&times;</button></div><div class="col-12 mt-1"><span class="expiry-preview small text-secondary"></span></div>`;
+                    document.getElementById('multiProductRows').appendChild(row);
+                    row.querySelector('.removeProductRowBtn').onclick = function() { row.remove(); };
+                    // Expiry auto-calc logic
+                    const productSelect = row.querySelector('.productSelect');
+                    const mfgDateInput = document.getElementById('mfgDate');
+                    const expiryPreview = row.querySelector('.expiry-preview');
+                    function updateExpiryPreview() {
+                        const selected = productSelect.options[productSelect.selectedIndex];
+                        const expiryDays = parseInt(selected.getAttribute('data-expiry'));
+                        const mfgDate = mfgDateInput.value;
+                        if (expiryDays && mfgDate) {
+                            const mfg = new Date(mfgDate);
+                            mfg.setDate(mfg.getDate() + expiryDays);
+                            const yyyy = mfg.getFullYear();
+                            const mm = String(mfg.getMonth() + 1).padStart(2, '0');
+                            const dd = String(mfg.getDate()).padStart(2, '0');
+                            const expiryDate = `${yyyy}-${mm}-${dd}`;
+                            expiryPreview.textContent = `Expiry: ${expiryDate}`;
+                            // Highlight if near expiry (within 15 days)
+                            const today = new Date();
+                            const expiryObj = new Date(expiryDate);
+                            const diffDays = Math.ceil((expiryObj - today) / (1000 * 60 * 60 * 24));
+                            expiryPreview.classList.remove('text-danger', 'text-warning', 'text-secondary');
+                            if (diffDays <= 15) {
+                                expiryPreview.classList.add('text-danger');
+                                expiryPreview.textContent += ' (Near expiry!)';
+                            } else if (diffDays <= 30) {
+                                expiryPreview.classList.add('text-warning');
+                            } else {
+                                expiryPreview.classList.add('text-secondary');
+                            }
+                        } else {
+                            expiryPreview.textContent = '';
+                            expiryPreview.className = 'expiry-preview small text-secondary';
+                        }
+                    }
+                    productSelect.addEventListener('change', updateExpiryPreview);
+                    mfgDateInput.addEventListener('input', updateExpiryPreview);
+                }
+                document.getElementById('addProductRowBtn').onclick = addProductRow;
+                // Add initial row
+                document.getElementById('multiProductRows').innerHTML = '';
+                addProductRow();
+                // Batch form submit (multi-product)
+                document.getElementById('batchForm').onsubmit = function(e) {
+                    e.preventDefault();
+                    const token = localStorage.getItem('access_token');
+                    const batch_id = document.getElementById('batchId').value.trim();
+                    const mfg_date = document.getElementById('mfgDate').value;
+                    const products = [];
+                    document.querySelectorAll('.product-row').forEach(row => {
+                        const product_id = row.querySelector('.productSelect').value;
+                        const quantity = parseFloat(row.querySelector('.quantityInput').value);
+                        const expiry = row.querySelector('.expiry-preview').textContent || null;
+                        if (product_id && !isNaN(quantity) && quantity > 0) {
+                            products.push({ product_id: parseInt(product_id), initial_quantity: quantity, current_quantity: quantity, expiry });
+                        }
+                    });
+                    if (!batch_id || !mfg_date || !products.length) {
+                        showWmsToast('Please fill all fields and add at least one product.', 'danger');
+                        return;
+                    }
+                    const batchData = {
+                        batch_id,
+                        manufacturing_date: mfg_date,
+                        received_date: mfg_date,
+                        expiry_date: products[0].expiry, // Use first expiry for batch event
+                        owner_type: 'Distributor',
+                        owner_id: 1,
+                        qc_status: 'Approved'
+                    };
+                    fetch('http://localhost:8000/api/batches/multi', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                        body: JSON.stringify({ batch_data: batchData, products })
+                    })
+                    .then(res => {
+                        if (res.ok) {
+                            showWmsToast('Batch added!', 'success');
+                            document.getElementById('batchForm').reset();
+                            document.getElementById('multiProductRows').innerHTML = '';
+                            addProductRow();
+                            var modal = bootstrap.Modal.getInstance(document.getElementById('batchModal'));
+                            modal.hide();
+                            setTimeout(() => window.location.reload(), 1200);
+                        } else {
+                            showWmsToast('Failed to add batch.', 'danger');
+                        }
+                    })
+                    .catch(() => {
+                        showWmsToast('Failed to add batch.', 'danger');
+                    });
+                };
+                // Edit Batch Modal logic
+                const editBatchForm = document.getElementById('editBatchForm');
+                if (editBatchForm) {
+                    editBatchForm.onsubmit = function(e) {
+                        e.preventDefault();
+                        const token = localStorage.getItem('access_token');
+                        const batch_id = document.getElementById('editBatchId').value;
+                        const product_id = document.getElementById('editBatchProductSelect').value;
+                        const mfg_date = document.getElementById('editBatchMfgDate').value;
+                        const expiry_date = document.getElementById('editBatchExpiryDate').value;
+                        const quantity = parseFloat(document.getElementById('editBatchQuantity').value);
+                        const qc_status = document.getElementById('editBatchQC').value;
+                        if (!batch_id || !product_id || !mfg_date || !expiry_date || isNaN(quantity) || quantity <= 0) {
+                            showWmsToast('Please fill all fields with valid values.', 'danger');
+                            return;
+                        }
+                        fetch('http://localhost:8000/api/batches/' + encodeURIComponent(batch_id), {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                            body: JSON.stringify({
+                                batch_id,
+                                product_id: parseInt(product_id),
+                                manufacturing_date: mfg_date,
+                                expiry_date,
+                                initial_quantity: quantity, // Optionally keep original
+                                current_quantity: quantity,
+                                owner_type: 'Distributor',
+                                owner_id: 1,
+                                qc_status
+                            })
+                        })
+                        .then(res => {
+                            if (res.ok) {
+                                showWmsToast('Batch updated!', 'success');
+                                var modal = bootstrap.Modal.getInstance(document.getElementById('editBatchModal'));
+                                modal.hide();
+                                setTimeout(() => window.location.reload(), 1200);
+                            } else {
+                                showWmsToast('Failed to update batch.', 'danger');
+                            }
+                        })
+                        .catch(() => showWmsToast('Failed to update batch.', 'danger'));
+                    };
+                }
+            });
+        // Auto-suggest next batch ID by serial for today
+        const batchModal = document.getElementById('batchModal');
+        batchModal.addEventListener('show.bs.modal', function () {
+            const batchIdInput = document.getElementById('batchId');
+            // Get today's date in YYYYMMDD
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}${mm}${dd}`;
+            // Fetch all batch groups and find the highest serial for today
+            fetch('http://localhost:8000/api/batch-groups', { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(groups => {
+                    let maxSerial = 0;
+                    groups.forEach(g => {
+                        const match = g.batch_id.match(/^BATCH-(\d{8})-(\d{3})$/);
+                        if (match && match[1] === dateStr) {
+                            const serial = parseInt(match[2], 10);
+                            if (serial > maxSerial) maxSerial = serial;
+                        }
+                    });
+                    const nextSerial = String(maxSerial + 1).padStart(3, '0');
+                    batchIdInput.value = `BATCH-${dateStr}-${nextSerial}`;
+                })
+                .catch(() => {
+                    // Fallback if fetch fails
+                    batchIdInput.value = `BATCH-${dateStr}-001`;
+                });
+        });
+    });
+    </script>
+</body>
+</html>

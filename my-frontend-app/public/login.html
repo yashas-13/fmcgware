@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - WMS</title>
+    <link href="/static/css/styles.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h4 class="card-title mb-4">Login</h4>
+                        <form id="loginForm">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password</label>
+                                <input type="password" class="form-control" id="password" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Login</button>
+                        </form>
+                        <div id="loginError" class="text-danger mt-3" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/main.js"></script>
+    <script>
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('loginError');
+        errorDiv.style.display = 'none';
+        try {
+            const res = await fetch('http://localhost:8000/api/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+            });
+            const data = await res.json();
+            if (res.ok && data.access_token) {
+                localStorage.setItem('access_token', data.access_token);
+                // Fetch user info to determine role and redirect accordingly
+                const meRes = await fetch('http://localhost:8000/api/me', {
+                    headers: { 'Authorization': 'Bearer ' + data.access_token }
+                });
+                if (meRes.ok) {
+                    const user = await meRes.json();
+                    if (user.role === 'Distributor') {
+                        window.location.href = 'distributor.html';
+                    } else if (user.role === 'Retailer') {
+                        window.location.href = 'retailer.html';
+                    } else {
+                        window.location.href = 'index.html';
+                    }
+                } else {
+                    window.location.href = 'index.html';
+                }
+            } else {
+                errorDiv.textContent = data.detail || 'Login failed.';
+                errorDiv.style.display = 'block';
+            }
+        } catch (err) {
+            errorDiv.textContent = 'Network error.';
+            errorDiv.style.display = 'block';
+        }
+    });
+    </script>
+</body>
+</html>

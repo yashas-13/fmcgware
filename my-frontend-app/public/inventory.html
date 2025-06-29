@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+    body { background: #f8fafc; }
+    @media (max-width: 767.98px) {
+        .dashboard-header, .dashboard-card, .card, .table-responsive { border-radius: 0.5rem !important; }
+        .dashboard-header { font-size: 1.1rem; }
+        .summary-icon { font-size: 1.5rem; }
+        .dashboard-card { margin-bottom: 1rem !important; }
+        .d-flex.justify-content-end.mb-3 { flex-direction: column !important; align-items: stretch !important; }
+        .d-flex.justify-content-end.mb-3 > * { margin-bottom: 0.5rem !important; width: 100%; }
+    }
+    .fab {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 1050;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #38b6ff;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        box-shadow: 0 4px 16px #0002;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .fab:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h2 class="mb-4">Inventory</h2>
+        <div id="inventoryTable"></div>
+        <a href="distributor.html" class="btn btn-secondary mt-3">Back to Dashboard</a>
+        <div class="mb-4">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addInventoryModal"><i class="fa fa-plus"></i> Add Inventory (Multi-Product Batch)</button>
+        </div>
+        <div class="mb-4">
+            <a class="btn btn-outline-warning me-2" href="dispatch.html"><i class="fa fa-truck"></i> Dispatch Products</a>
+            <a class="btn btn-outline-info me-2" href="#" id="viewBatchGroupsBtn"><i class="fa fa-layer-group"></i> View Batch Groups</a>
+            <input type="text" id="batchReportInput" class="form-control d-inline-block w-auto" placeholder="Batch ID for Report">
+            <button class="btn btn-outline-primary ms-2" id="batchReportBtn">Batch Report</button>
+        </div>
+        <div id="batchGroupsSection" class="mb-4"></div>
+        <div id="batchReportSection" class="mb-4"></div>
+        <!-- Modal for Add Inventory -->
+        <div class="modal fade" id="addInventoryModal" tabindex="-1" aria-labelledby="addInventoryModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="inventoryForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="addInventoryModalLabel"><i class="fa fa-warehouse"></i> Add Inventory (Multi-Product Batch)</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div id="multiProductRows"></div>
+                  <button type="button" class="btn btn-link" id="addProductRowBtn">+ Add Product</button>
+                  <div class="mb-3">
+                    <label for="batchId" class="form-label">Batch ID</label>
+                    <input type="text" class="form-control" id="batchId" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="mfgDate" class="form-label">Manufacturing Date</label>
+                    <input type="date" class="form-control" id="mfgDate" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="expiryDate" class="form-label">Expiry Date</label>
+                    <input type="date" class="form-control" id="expiryDate" required>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Modal for Edit Inventory -->
+        <div class="modal fade" id="editInventoryModal" tabindex="-1" aria-labelledby="editInventoryModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="editInventoryForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="editInventoryModalLabel"><i class="fa fa-edit"></i> Edit Inventory</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <input type="hidden" id="editInventoryId">
+                  <div class="mb-3">
+                    <label for="editProductSelect" class="form-label">Product</label>
+                    <select class="form-select" id="editProductSelect" required></select>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editBatchId" class="form-label">Batch ID</label>
+                    <input type="text" class="form-control" id="editBatchId" required readonly>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editMfgDate" class="form-label">Manufacturing Date</label>
+                    <input type="date" class="form-control" id="editMfgDate" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editExpiryDate" class="form-label">Expiry Date</label>
+                    <input type="date" class="form-control" id="editExpiryDate" required>
+                    <span id="editExpiryPreview" class="small text-secondary ms-2"></span>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editQuantity" class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="editQuantity" min="0.01" step="0.01" required>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Modal for Inventory History -->
+        <div class="modal fade" id="inventoryHistoryModal" tabindex="-1" aria-labelledby="inventoryHistoryModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="inventoryHistoryModalLabel"><i class="fa fa-history"></i> Inventory History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" id="inventoryHistoryModalBody">
+                <!-- History content will be loaded here -->
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Floating Action Button for Add Batch (example) -->
+        <button class="fab d-md-none" id="fabAddBatch" title="Add Batch"><i class="fa fa-plus"></i></button>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        let productMaster = [];
+        let productsMap = {};
+        fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(products => {
+                productMaster = products;
+                products.forEach(p => { productsMap[p.product_id] = p; });
+                // Render inventory table with product names
+                fetch('http://localhost:8000/api/inventory', { headers: { 'Authorization': 'Bearer ' + token } })
+                    .then(res => res.json())
+                    .then(inventory => {
+                        // Only show warehouse inventory
+                        const warehouseInventory = inventory.filter(i => i.location === 'warehouse');
+                        // Group inventory by batch_id
+                        const batchMap = {};
+                        warehouseInventory.forEach(i => {
+                            if (!batchMap[i.batch_id]) batchMap[i.batch_id] = [];
+                            batchMap[i.batch_id].push(i);
+                        });
+                        let html = '<table class="table table-bordered"><thead><tr><th>Batch ID</th><th>Products</th><th>Quantity</th><th>Unit UIDs</th><th>Actions</th></tr></thead><tbody>';
+                        const fetchUnitUids = async (batch_id, product_id) => {
+                            const res = await fetch(`http://localhost:8000/api/batch-units?batch_id=${encodeURIComponent(batch_id)}&product_id=${product_id}&location=warehouse`, { headers: { 'Authorization': 'Bearer ' + token } });
+                            if (!res.ok) return [];
+                            return await res.json();
+                        };
+                        const renderTable = async () => {
+                            let tableRows = '';
+                            for (const batch_id of Object.keys(batchMap)) {
+                                const batchItems = batchMap[batch_id];
+                                for (let idx = 0; idx < batchItems.length; idx++) {
+                                    const item = batchItems[idx];
+                                    tableRows += `<tr>`;
+                                    if (idx === 0) tableRows += `<td rowspan="${batchItems.length}">${batch_id}</td>`;
+                                    const prod = productsMap[item.product_id] || {};
+                                    tableRows += `<td>${prod.product_name || item.product_id}</td>`;
+                                    tableRows += `<td>${item.current_quantity}</td>`;
+                                    // Fetch and display unit UIDs
+                                    const units = await fetchUnitUids(batch_id, item.product_id);
+                                    tableRows += `<td>${units.length ? units.map(u => `<span class='badge bg-secondary'>${u.unit_uid}</span>`).join(' ') : '-'}</td>`;
+                                    if (idx === 0) {
+                                        tableRows += `<td rowspan="${batchItems.length}"><button class='btn btn-sm btn-primary editBatchBtn' data-batch-id='${batch_id}'>Edit</button> <button class='btn btn-sm btn-danger deleteBatchBtn' data-batch-id='${batch_id}'>Delete</button></td>`;
+                                    }
+                                    tableRows += '</tr>';
+                                }
+                            }
+                            html += tableRows + '</tbody></table>';
+                            document.getElementById('inventoryTable').innerHTML = html;
+                            // Attach batch edit event
+                            document.querySelectorAll('.editBatchBtn').forEach(btn => {
+                                btn.onclick = function() {
+                                    const batchId = btn.getAttribute('data-batch-id');
+                                    // Fetch all inventory items for this batch
+                                    const batchItems = batchMap[batchId];
+                                    // Populate edit modal with all products in batch
+                                    const editModalBody = document.querySelector('#editInventoryModal .modal-body');
+                                    let modalHtml = '';
+                                    batchItems.forEach((item, idx) => {
+                                        const prod = productsMap[item.product_id] || {};
+                                        modalHtml += `<div class='mb-3'><label class='form-label'>Product</label><input type='text' class='form-control' value='${prod.product_name || item.product_id}' readonly></div>`;
+                                        modalHtml += `<div class='mb-3'><label class='form-label'>Quantity</label><input type='number' class='form-control editBatchQtyInput' data-product-id='${item.product_id}' value='${item.current_quantity}' min='0.01' step='0.01' required></div>`;
+                                    });
+                                    editModalBody.innerHTML = modalHtml;
+                                    document.getElementById('editBatchId').value = batchId;
+                                    // Show modal
+                                    var modal = new bootstrap.Modal(document.getElementById('editInventoryModal'));
+                                    modal.show();
+                                };
+                            });
+                            // Attach batch delete event (optional, implement as needed)
+                        };
+                        renderTable();
+                    });
+                // Multi-product batch logic
+                function addProductRow() {
+                    const row = document.createElement('div');
+                    row.className = 'row g-2 mb-2 product-row';
+                    row.innerHTML = `<div class="col-6"><select class="form-select productSelect" required><option value="">Select product</option>${productMaster.map(p => `<option value="${p.product_id}" data-expiry="${p.expiry_period_days}">${p.product_name}</option>`).join('')}</select></div><div class="col-4"><input type="number" class="form-control quantityInput" min="0.01" step="0.01" placeholder="Quantity" required></div><div class="col-2"><button type="button" class="btn btn-danger btn-sm removeProductRowBtn">&times;</button></div><div class="col-12 mt-1"><span class="expiry-preview small text-secondary"></span></div>`;
+                    document.getElementById('multiProductRows').appendChild(row);
+                    row.querySelector('.removeProductRowBtn').onclick = function() { row.remove(); };
+
+                    // --- Expiry auto-calc logic ---
+                    const productSelect = row.querySelector('.productSelect');
+                    const mfgDateInput = document.getElementById('mfgDate');
+                    const expiryPreview = row.querySelector('.expiry-preview');
+                    function updateExpiryPreview() {
+                        const selected = productSelect.options[productSelect.selectedIndex];
+                        const expiryDays = parseInt(selected.getAttribute('data-expiry'));
+                        const mfgDate = mfgDateInput.value;
+                        if (expiryDays && mfgDate) {
+                            const mfg = new Date(mfgDate);
+                            mfg.setDate(mfg.getDate() + expiryDays);
+                            const yyyy = mfg.getFullYear();
+                            const mm = String(mfg.getMonth() + 1).padStart(2, '0');
+                            const dd = String(mfg.getDate()).padStart(2, '0');
+                            const expiryDate = `${yyyy}-${mm}-${dd}`;
+                            expiryPreview.textContent = `Expiry: ${expiryDate}`;
+                            // Highlight if near expiry (within 15 days)
+                            const today = new Date();
+                            const expiryObj = new Date(expiryDate);
+                            const diffDays = Math.ceil((expiryObj - today) / (1000 * 60 * 60 * 24));
+                            expiryPreview.classList.remove('text-danger', 'text-warning', 'text-secondary');
+                            if (diffDays <= 15) {
+                                expiryPreview.classList.add('text-danger');
+                                expiryPreview.textContent += ' (Near expiry!)';
+                            } else if (diffDays <= 30) {
+                                expiryPreview.classList.add('text-warning');
+                            } else {
+                                expiryPreview.classList.add('text-secondary');
+                            }
+                        } else {
+                            expiryPreview.textContent = '';
+                            expiryPreview.className = 'expiry-preview small text-secondary';
+                        }
+                    }
+                    productSelect.addEventListener('change', updateExpiryPreview);
+                    mfgDateInput.addEventListener('input', updateExpiryPreview);
+                }
+                document.getElementById('addProductRowBtn').onclick = addProductRow;
+                // Add initial row
+                document.getElementById('multiProductRows').innerHTML = '';
+                addProductRow();
+                // Inventory form submit (multi-product batch)
+                document.getElementById('inventoryForm').onsubmit = async function(e) {
+                    e.preventDefault();
+                    const batch_id = document.getElementById('batchId').value.trim();
+                    const mfg_date = document.getElementById('mfgDate').value;
+                    const expiry_date = document.getElementById('expiryDate').value;
+                    const productRows = document.querySelectorAll('.product-row');
+                    let products = [];
+                    let calculatedExpiry = null;
+                    productRows.forEach(row => {
+                        const product_id = row.querySelector('.productSelect').value;
+                        const quantity = parseFloat(row.querySelector('.quantityInput').value);
+                        // Calculate expiry for this row
+                        const selected = row.querySelector('.productSelect').options[row.querySelector('.productSelect').selectedIndex];
+                        const expiryDays = parseInt(selected.getAttribute('data-expiry'));
+                        if (expiryDays && mfg_date) {
+                            const mfg = new Date(mfg_date);
+                            mfg.setDate(mfg.getDate() + expiryDays);
+                            const yyyy = mfg.getFullYear();
+                            const mm = String(mfg.getMonth() + 1).padStart(2, '0');
+                            const dd = String(mfg.getDate()).padStart(2, '0');
+                            calculatedExpiry = `${yyyy}-${mm}-${dd}`;
+                        }
+                        if (product_id && !isNaN(quantity) && quantity > 0) {
+                            products.push({ product_id: parseInt(product_id), quantity });
+                        }
+                    });
+                    if (!batch_id || !mfg_date || !products.length) {
+                        showWmsToast('Please fill all fields and add at least one product.', 'danger');
+                        return;
+                    }
+                    // Use calculatedExpiry for all products in this batch
+                    // Post each product as a batch+inventory
+                    Promise.all(products.map(prod =>
+                        fetch('http://localhost:8000/api/batches', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                            body: JSON.stringify({
+                                batch_id,
+                                product_id: prod.product_id,
+                                manufacturing_date: mfg_date,
+                                received_date: mfg_date,
+                                expiry_date: calculatedExpiry,
+                                initial_quantity: prod.quantity,
+                                current_quantity: prod.quantity,
+                                owner_type: 'Distributor',
+                                owner_id: 1,
+                                qc_status: 'Approved'
+                            })
+                        }).then(res => res.ok ?
+                            fetch('http://localhost:8000/api/inventory', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                                body: JSON.stringify({
+                                    product_id: prod.product_id,
+                                    batch_id,
+                                    location: 'warehouse',
+                                    current_quantity: prod.quantity
+                                })
+                            }) : Promise.reject(res))
+                    ))
+                    .then(() => {
+                        showWmsToast('Inventory batch added!', 'success');
+                        document.getElementById('inventoryForm').reset();
+                        document.getElementById('multiProductRows').innerHTML = '';
+                        addProductRow();
+                        var modal = bootstrap.Modal.getInstance(document.getElementById('addInventoryModal'));
+                        modal.hide();
+                        setTimeout(() => window.location.reload(), 1200);
+                    }).catch(() => {
+                        showWmsToast('Failed to add inventory batch.', 'danger');
+                    });
+                };
+                // Batch Groups
+                document.getElementById('viewBatchGroupsBtn').onclick = function(e) {
+                    e.preventDefault();
+                    fetch('http://localhost:8000/api/batch-groups', { headers: { 'Authorization': 'Bearer ' + token } })
+                        .then(res => res.json())
+                        .then(groups => {
+                            let html = '<h5>Batch Groups</h5>';
+                            groups.forEach(g => {
+                                html += `<div class='card mb-2'><div class='card-header'>Batch: <b>${g.batch_id}</b> | Mfg: ${g.manufacturing_date || ''} | Exp: ${g.expiry_date || ''}</div><div class='card-body'><ul>`;
+                                g.products.forEach(p => {
+                                    const prod = productsMap[p.product_id] || {};
+                                    html += `<li>Product: ${prod.product_name || p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                                });
+                                html += '</ul></div></div>';
+                            });
+                            document.getElementById('batchGroupsSection').innerHTML = html;
+                        });
+                };
+                // Batch Report
+                document.getElementById('batchReportBtn').onclick = function() {
+                    const batchId = document.getElementById('batchReportInput').value.trim();
+                    if (!batchId) return showWmsToast('Enter a batch ID', 'warning');
+                    fetch('http://localhost:8000/api/batch-report/' + batchId, { headers: { 'Authorization': 'Bearer ' + token } })
+                        .then(res => res.json())
+                        .then(report => {
+                            let html = `<h5>Batch Report for <b>${report.batch_id}</b></h5>`;
+                            html += '<b>Products:</b><ul>';
+                            report.products.forEach(p => {
+                                const prod = productsMap[p.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                            });
+                            html += '</ul><b>Inventory:</b><ul>';
+                            report.inventory.forEach(i => {
+                                const prod = productsMap[i.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || i.product_id}, Location: ${i.location}, Qty: ${i.current_quantity}</li>`;
+                            });
+                            html += '</ul><b>Dispatches:</b><ul>';
+                            report.dispatches.forEach(d => {
+                                const prod = productsMap[d.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || d.product_id}, Retailer: ${d.location}, Qty: ${d.current_quantity}</li>`;
+                            });
+                            html += '</ul>';
+                            document.getElementById('batchReportSection').innerHTML = html;
+                        });
+                };
+            });
+        // FAB for Add Batch (example, you can link to a modal or form)
+        const fabAddBatch = document.getElementById('fabAddBatch');
+        if (fabAddBatch) {
+            fabAddBatch.onclick = function() {
+                alert('Show add batch modal or form here!');
+            };
+        }
+        // --- Table Sort/Filter Controls ---
+        function addTableSortFilter(tableId) {
+          const table = document.getElementById(tableId);
+          if (!table) return;
+          const thead = table.querySelector('thead');
+          if (!thead) return;
+          // Add filter row
+          if (!table.querySelector('.filter-row')) {
+            const filterRow = document.createElement('tr');
+            filterRow.className = 'filter-row';
+            Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+              const th = document.createElement('th');
+              if (cell.textContent.trim() !== '') {
+                const input = document.createElement('input');
+                input.className = 'form-control form-control-sm';
+                input.placeholder = 'Filter';
+                input.oninput = function() {
+                  const val = this.value.toLowerCase();
+                  Array.from(table.tBodies[0].rows).forEach(row => {
+                    row.style.display = row.cells[idx].textContent.toLowerCase().includes(val) ? '' : 'none';
+                  });
+                };
+                th.appendChild(input);
+              }
+              filterRow.appendChild(th);
+            });
+            thead.appendChild(filterRow);
+          }
+          // Add sort on click
+          Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+            cell.style.cursor = 'pointer';
+            cell.onclick = function() {
+              const rows = Array.from(table.tBodies[0].rows);
+              const asc = !cell.classList.contains('sorted-asc');
+              rows.sort((a, b) => {
+                const v1 = a.cells[idx].textContent.trim();
+                const v2 = b.cells[idx].textContent.trim();
+                return asc ? v1.localeCompare(v2, undefined, {numeric:true}) : v2.localeCompare(v1, undefined, {numeric:true});
+              });
+              rows.forEach(r => table.tBodies[0].appendChild(r));
+              Array.from(thead.rows[0].cells).forEach(c => c.classList.remove('sorted-asc', 'sorted-desc'));
+              cell.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+            };
+          });
+        }
+        // Call after rendering tables
+        setTimeout(() => {
+          addTableSortFilter('inventoryTable');
+        }, 1200);
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+    body { background: #f8fafc; }
+    @media (max-width: 767.98px) {
+        .dashboard-header, .dashboard-card, .card, .table-responsive { border-radius: 0.5rem !important; }
+        .dashboard-header { font-size: 1.1rem; }
+        .summary-icon { font-size: 1.5rem; }
+        .dashboard-card { margin-bottom: 1rem !important; }
+        .d-flex.justify-content-end.mb-3 { flex-direction: column !important; align-items: stretch !important; }
+        .d-flex.justify-content-end.mb-3 > * { margin-bottom: 0.5rem !important; width: 100%; }
+    }
+    .fab {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 1050;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #38b6ff;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        box-shadow: 0 4px 16px #0002;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .fab:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h2 class="mb-4">Product Master Data</h2>
+        <div id="productTable"></div>
+        <a href="distributor.html" class="btn btn-secondary mt-3">Back to Dashboard</a>
+        <div class="mb-4">
+            <a class="btn btn-outline-info me-2" href="#" id="viewBatchGroupsBtn"><i class="fa fa-layer-group"></i> View Batch Groups</a>
+            <input type="text" id="batchReportInput" class="form-control d-inline-block w-auto" placeholder="Batch ID for Report">
+            <button class="btn btn-outline-primary ms-2" id="batchReportBtn">Batch Report</button>
+        </div>
+        <div id="batchGroupsSection" class="mb-4"></div>
+        <div id="batchReportSection" class="mb-4"></div>
+        <!-- Floating Action Button for Add Product (example) -->
+        <button class="fab d-md-none" id="fabAddProduct" title="Add Product"><i class="fa fa-plus"></i></button>
+
+        <!-- Edit Product Modal -->
+        <div class="modal fade" id="editProductModal" tabindex="-1" aria-labelledby="editProductModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="editProductModalLabel">Edit Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <form id="editProductForm">
+                  <input type="hidden" id="editProductId">
+                  <div class="mb-3">
+                    <label for="editProductName" class="form-label">Name</label>
+                    <input type="text" class="form-control" id="editProductName" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editProductCategory" class="form-label">Category</label>
+                    <input type="text" class="form-control" id="editProductCategory" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editProductPackSize" class="form-label">Pack Size</label>
+                    <input type="number" class="form-control" id="editProductPackSize" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editProductUnit" class="form-label">Unit</label>
+                    <input type="text" class="form-control" id="editProductUnit" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editProductPrice" class="form-label">Price (₹)</label>
+                    <input type="number" class="form-control" id="editProductPrice" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="editProductExpiry" class="form-label">Expiry (days)</label>
+                    <input type="number" class="form-control" id="editProductExpiry" required>
+                  </div>
+                  <button type="submit" class="btn btn-primary">Save Changes</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Product History Modal -->
+        <div class="modal fade" id="productHistoryModal" tabindex="-1" aria-labelledby="productHistoryModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="productHistoryModalLabel">Product History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" id="productHistoryModalBody">
+                <!-- History will be loaded here -->
+              </div>
+            </div>
+          </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        let productsMap = {};
+        fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(products => {
+                products.forEach(p => { productsMap[p.product_id] = p; });
+                let html = '<table class="table table-bordered" id="productTable"><thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Pack Size</th><th>Unit</th><th>Price (₹)</th><th>Expiry (days)</th><th>Actions</th></tr></thead><tbody>';
+                products.forEach(p => {
+                    html += `<tr data-product-id="${p.product_id}"><td>${p.product_id}</td><td>${p.product_name}</td><td>${p.category}</td><td>${p.standard_pack_size}</td><td>${p.measurement_unit}</td><td>${p.price_inr}</td><td>${p.expiry_period_days}</td><td><button class='btn btn-sm btn-primary editProductBtn'>Edit</button> <button class='btn btn-sm btn-danger deleteProductBtn'>Delete</button> <button class='btn btn-sm btn-info viewProductHistoryBtn'>View History</button></td></tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('productTable').innerHTML = html;
+                // Attach CRUD event listeners
+                document.querySelectorAll('.editProductBtn').forEach(btn => {
+                    btn.onclick = function() {
+                        const row = btn.closest('tr');
+                        const productId = row.getAttribute('data-product-id');
+                        const product = productsMap[productId];
+                        if (!product) return;
+                        // Populate modal fields
+                        document.getElementById('editProductId').value = product.product_id;
+                        document.getElementById('editProductName').value = product.product_name;
+                        document.getElementById('editProductCategory').value = product.category;
+                        document.getElementById('editProductPackSize').value = product.standard_pack_size;
+                        document.getElementById('editProductUnit').value = product.measurement_unit;
+                        document.getElementById('editProductPrice').value = product.price_inr;
+                        document.getElementById('editProductExpiry').value = product.expiry_period_days;
+                        var modal = new bootstrap.Modal(document.getElementById('editProductModal'));
+                        modal.show();
+                    };
+                });
+                document.querySelectorAll('.deleteProductBtn').forEach(btn => {
+                    btn.onclick = async function() {
+                        const row = btn.closest('tr');
+                        const productId = row.getAttribute('data-product-id');
+                        if (confirm('Are you sure you want to delete product ' + productId + '?')) {
+                            const res = await fetch('http://localhost:8000/api/products/' + productId, {
+                                method: 'DELETE',
+                                headers: { 'Authorization': 'Bearer ' + token }
+                            });
+                            if (res.ok) {
+                                row.remove();
+                            } else {
+                                alert('Failed to delete product.');
+                            }
+                        }
+                    };
+                });
+                // View Product History
+                document.querySelectorAll('.viewProductHistoryBtn').forEach(btn => {
+                    btn.onclick = function() {
+                        const row = btn.closest('tr');
+                        const productId = row.getAttribute('data-product-id');
+                        fetch(`http://localhost:8000/api/products/${productId}/history`, { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(history => {
+                                let html = '<ul class="list-group">';
+                                if (history && history.length) {
+                                    history.forEach(h => {
+                                        html += `<li class='list-group-item'><b>${h.timestamp || ''}</b>: ${h.action || ''} - ${h.details || ''}</li>`;
+                                    });
+                                } else {
+                                    html += '<li class="list-group-item">No history found.</li>';
+                                }
+                                html += '</ul>';
+                                document.getElementById('productHistoryModalBody').innerHTML = html;
+                                var modal = new bootstrap.Modal(document.getElementById('productHistoryModal'));
+                                modal.show();
+                            });
+                    };
+                });
+                // --- Edit Product Form Submit ---
+                document.getElementById('editProductForm').onsubmit = async function(e) {
+                    e.preventDefault();
+                    const token = localStorage.getItem('access_token');
+                    const productId = document.getElementById('editProductId').value;
+                    const payload = {
+                        product_name: document.getElementById('editProductName').value,
+                        category: document.getElementById('editProductCategory').value,
+                        standard_pack_size: parseInt(document.getElementById('editProductPackSize').value),
+                        measurement_unit: document.getElementById('editProductUnit').value,
+                        price_inr: parseFloat(document.getElementById('editProductPrice').value),
+                        expiry_period_days: parseInt(document.getElementById('editProductExpiry').value)
+                    };
+                    const res = await fetch('http://localhost:8000/api/products/' + productId, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) {
+                        showWmsToast('Product updated!', 'success');
+                        var modal = bootstrap.Modal.getInstance(document.getElementById('editProductModal'));
+                        modal.hide();
+                        setTimeout(() => window.location.reload(), 1200);
+                    } else {
+                        showWmsToast('Failed to update product.', 'danger');
+                    }
+                };
+                // --- Batch Groups ---
+                document.getElementById('viewBatchGroupsBtn').onclick = function(e) {
+                    e.preventDefault();
+                    fetch('http://localhost:8000/api/batch-groups', { headers: { 'Authorization': 'Bearer ' + token } })
+                        .then(res => res.json())
+                        .then(groups => {
+                            let html = '<h5>Batch Groups</h5>';
+                            groups.forEach(g => {
+                                html += `<div class='card mb-2'><div class='card-header'>Batch: <b>${g.batch_id}</b> | Mfg: ${g.manufacturing_date || ''} | Exp: ${g.expiry_date || ''}</div><div class='card-body'><ul>`;
+                                g.products.forEach(p => {
+                                    const prod = productsMap[p.product_id] || {};
+                                    html += `<li>Product: ${prod.product_name || p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                                });
+                                html += '</ul></div></div>';
+                            });
+                            document.getElementById('batchGroupsSection').innerHTML = html;
+                        });
+                };
+                // --- Batch Report ---
+                document.getElementById('batchReportBtn').onclick = function() {
+                    const batchId = document.getElementById('batchReportInput').value.trim();
+                    if (!batchId) return showWmsToast('Enter a batch ID', 'warning');
+                    fetch('http://localhost:8000/api/batch-report/' + batchId, { headers: { 'Authorization': 'Bearer ' + token } })
+                        .then(res => res.json())
+                        .then(report => {
+                            let html = `<h5>Batch Report for <b>${report.batch_id}</b></h5>`;
+                            html += '<b>Products:</b><ul>';
+                            report.products.forEach(p => {
+                                const prod = productsMap[p.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                            });
+                            html += '</ul><b>Inventory:</b><ul>';
+                            report.inventory.forEach(i => {
+                                const prod = productsMap[i.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || i.product_id}, Location: ${i.location}, Qty: ${i.current_quantity}</li>`;
+                            });
+                            html += '</ul><b>Dispatches:</b><ul>';
+                            report.dispatches.forEach(d => {
+                                const prod = productsMap[d.product_id] || {};
+                                html += `<li>Product: ${prod.product_name || d.product_id}, Retailer: ${d.location}, Qty: ${d.current_quantity}</li>`;
+                            });
+                            html += '</ul>';
+                            document.getElementById('batchReportSection').innerHTML = html;
+                        });
+                };
+            });
+    });
+    // FAB for Add Product (example, you can link to a modal or form)
+    const fabAddProduct = document.getElementById('fabAddProduct');
+    if (fabAddProduct) {
+        fabAddProduct.onclick = function() {
+            alert('Show add product modal or form here!');
+        };
+    }
+    // --- Table Sort/Filter Controls ---
+    function addTableSortFilter(tableId) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+      const thead = table.querySelector('thead');
+      if (!thead) return;
+      // Add filter row
+      if (!table.querySelector('.filter-row')) {
+        const filterRow = document.createElement('tr');
+        filterRow.className = 'filter-row';
+        Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+          const th = document.createElement('th');
+          if (cell.textContent.trim() !== '') {
+            const input = document.createElement('input');
+            input.className = 'form-control form-control-sm';
+            input.placeholder = 'Filter';
+            input.oninput = function() {
+              const val = this.value.toLowerCase();
+              Array.from(table.tBodies[0].rows).forEach(row => {
+                row.style.display = row.cells[idx].textContent.toLowerCase().includes(val) ? '' : 'none';
+              });
+            };
+            th.appendChild(input);
+          }
+          filterRow.appendChild(th);
+        });
+        thead.appendChild(filterRow);
+      }
+      // Add sort on click
+      Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+        cell.style.cursor = 'pointer';
+        cell.onclick = function() {
+          const rows = Array.from(table.tBodies[0].rows);
+          const asc = !cell.classList.contains('sorted-asc');
+          rows.sort((a, b) => {
+            const v1 = a.cells[idx].textContent.trim();
+            const v2 = b.cells[idx].textContent.trim();
+            return asc ? v1.localeCompare(v2, undefined, {numeric:true}) : v2.localeCompare(v1, undefined, {numeric:true});
+          });
+          rows.forEach(r => table.tBodies[0].appendChild(r));
+          Array.from(thead.rows[0].cells).forEach(c => c.classList.remove('sorted-asc', 'sorted-desc'));
+          cell.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+        };
+      });
+    }
+    // Call after rendering tables
+    setTimeout(() => {
+      addTableSortFilter('productTable');
+    }, 1200);
+    </script>
+</body>
+</html>

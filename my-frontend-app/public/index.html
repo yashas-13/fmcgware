@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Frontend App</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <header class="bg-primary text-white text-center py-3">
+        <h1>Welcome to My Frontend App</h1>
+        <button id="logoutBtn" class="btn btn-light float-right">Logout</button>
+    </header>
+    <main class="container mt-4">
+        <div id="distributor-summary" class="row mb-3"></div>
+        <div id="distributor-welcome"></div>
+        <div id="distributor-inventory-valuation"></div>
+        <div id="distributor-stock-category"></div>
+        <div id="distributor-expiry"></div>
+        <div id="distributor-fefo"></div>
+        <div id="distributor-loader" class="text-center" style="display:none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    </main>
+    <footer class="text-center py-3">
+        <p>&copy; 2023 My Frontend App</p>
+    </footer>
+    <script src="/static/js/main.js"></script>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+        showLoader(true);
+        let productsMap = {};
+        fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(products => {
+                products.forEach(p => { productsMap[p.product_id] = p; });
+                fetch('http://localhost:8000/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
+                    .then(res => res.json())
+                    .then(user => {
+                        if (user.role !== 'Distributor') {
+                            window.location.href = 'retailer.html';
+                            return;
+                        }
+                        document.getElementById('distributor-welcome').innerHTML = `<div class='alert alert-success'>Welcome, ${user.username}!</div>`;
+                        // Inventory Valuation
+                        fetch('http://localhost:8000/api/analytics/inventory-valuation', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(data => {
+                                let html = `<h5>Inventory Valuation</h5><table class='table table-sm'><thead><tr><th>Product</th><th>Category</th><th>Qty</th><th>Price (₹)</th><th>Value (₹)</th></tr></thead><tbody>`;
+                                let totalValue = 0;
+                                data.breakdown.forEach(row => {
+                                    html += `<tr><td>${row.product_name}</td><td>${row.category}</td><td>${row.current_quantity}</td><td>${row.price_inr}</td><td>${row.value}</td></tr>`;
+                                    totalValue += row.value;
+                                });
+                                html += '</tbody></table>';
+                                document.getElementById('distributor-inventory-valuation').innerHTML = html;
+                                // Summary card
+                                document.getElementById('distributor-summary').innerHTML = `<div class='col-md-4'><div class='card text-white bg-info mb-3'><div class='card-body'><h5 class='card-title'>Total Inventory Value</h5><p class='card-text'>₹${totalValue}</p></div></div></div>`;
+                            });
+                        // Stock by Category
+                        fetch('http://localhost:8000/api/analytics/stock-by-category', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(data => {
+                                let html = `<h5>Stock by Category</h5><table class='table table-sm'><thead><tr><th>Category</th><th>Total Qty</th></tr></thead><tbody>`;
+                                data.forEach(row => {
+                                    html += `<tr><td>${row.category}</td><td>${row.total_quantity}</td></tr>`;
+                                });
+                                html += '</tbody></table>';
+                                document.getElementById('distributor-stock-category').innerHTML = html;
+                            });
+                        // Near-Expiry Batches
+                        fetch('http://localhost:8000/api/analytics/near-expiry-batches?days=15', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(batches => {
+                                if (batches.length > 0) {
+                                    let html = `<h5>Near-Expiry Batches (next 15 days)</h5><table class='table table-sm'><thead><tr><th>Batch ID</th><th>Product</th><th>Expiry</th><th>Qty</th><th>QC</th></tr></thead><tbody>`;
+                                    batches.forEach(b => {
+                                        const prod = productsMap[b.product_id] || {};
+                                        html += `<tr><td>${b.batch_id}</td><td>${prod.product_name || b.product_id}</td><td>${b.expiry_date}</td><td>${b.current_quantity}</td><td>${b.qc_status}</td></tr>`;
+                                    });
+                                    html += '</tbody></table>';
+                                    document.getElementById('distributor-expiry').innerHTML = html;
+                                    // Add to summary
+                                    document.getElementById('distributor-summary').innerHTML += `<div class='col-md-4'><div class='card text-white bg-warning mb-3'><div class='card-body'><h5 class='card-title'>Near-Expiry Batches</h5><p class='card-text'>${batches.length}</p></div></div></div>`;
+                                }
+                            });
+                        // FEFO Batch Picking Example
+                        fetch('http://localhost:8000/api/pick-batch/fefo?product_id=1&quantity=10', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.picked) {
+                                    let html = `<h5>FEFO Batch Picking (Product 1, Qty 10)</h5><ul class='list-group'>`;
+                                    data.picked.forEach(pick => {
+                                        html += `<li class='list-group-item'>Batch: ${pick.batch_id}, Expiry: ${pick.expiry_date}, Qty: ${pick.pick_quantity}</li>`;
+                                    });
+                                    html += '</ul>';
+                                    document.getElementById('distributor-fefo').innerHTML = html;
+                                } else if (data.error) {
+                                    document.getElementById('distributor-fefo').innerHTML = `<div class='alert alert-warning'>${data.error}</div>`;
+                                }
+                                showLoader(false);
+                            });
+                    });
+            });
+    });
+    </script>
+</body>
+</html>

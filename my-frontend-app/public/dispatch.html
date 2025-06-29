@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dispatch Products - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <style>
+        body { background: #f8fafc; }
+        .fab {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1050;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #4f8cff;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 4px 16px #0002;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .fab:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h2 class="mb-4">Dispatch Products</h2>
+        <form id="dispatchForm" class="mb-4">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="retailerSelect" class="form-label">Retailer</label>
+                    <select class="form-select" id="retailerSelect" required></select>
+                </div>
+                <div class="col-md-4">
+                    <label for="batchSelect" class="form-label">Batch</label>
+                    <select class="form-select" id="batchSelect" required></select>
+                </div>
+                <div class="col-md-4">
+                    <label for="productSelect" class="form-label">Product</label>
+                    <select class="form-select" id="productSelect" required></select>
+                </div>
+                <div class="col-md-4">
+                    <label for="quantityInput" class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="quantityInput" min="0.01" step="0.01" required>
+                    <span id="availableQty" class="small text-secondary"></span>
+                </div>
+                <div class="col-md-4 align-self-end">
+                    <button type="submit" class="btn btn-primary">Request Dispatch</button>
+                </div>
+            </div>
+        </form>
+        <div id="dispatchMsg"></div>
+        <h4 class="mt-5">Pending Dispatch Requests</h4>
+        <div id="pendingDispatches"></div>
+        <a href="inventory.html" class="btn btn-secondary mt-4">Back to Inventory</a>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    const token = localStorage.getItem('access_token');
+    let allInventory = [];
+    let allProducts = [];
+    let allRetailers = [];
+    let batchProductMap = {};
+    // Fetch retailers
+    fetch('http://localhost:8000/api/users', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(res => res.json())
+        .then(users => {
+            allRetailers = users.filter(u => u.role === 'Retailer');
+            const retailerSelect = document.getElementById('retailerSelect');
+            retailerSelect.innerHTML = '<option value="">Select retailer</option>';
+            allRetailers.forEach(r => {
+                retailerSelect.innerHTML += `<option value="${r.user_id}">${r.username} (${r.email})</option>`;
+            });
+        });
+    // Fetch inventory and products
+    Promise.all([
+        fetch('http://localhost:8000/api/inventory', { headers: { 'Authorization': 'Bearer ' + token } }).then(res => res.json()),
+        fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } }).then(res => res.json())
+    ]).then(([inventory, products]) => {
+        allInventory = inventory.filter(i => i.location === 'warehouse');
+        allProducts = products;
+        // Populate batch dropdown
+        const batchSelect = document.getElementById('batchSelect');
+        const uniqueBatches = [...new Set(allInventory.map(i => i.batch_id))];
+        batchSelect.innerHTML = '<option value="">Select batch</option>';
+        uniqueBatches.forEach(batchId => {
+            batchSelect.innerHTML += `<option value="${batchId}">${batchId}</option>`;
+        });
+        // Map batch to products
+        batchProductMap = {};
+        allInventory.forEach(i => {
+            if (!batchProductMap[i.batch_id]) batchProductMap[i.batch_id] = [];
+            batchProductMap[i.batch_id].push(i);
+        });
+    });
+    // When batch changes, populate product dropdown
+    document.getElementById('batchSelect').addEventListener('change', function() {
+        const batchId = this.value;
+        const productSelect = document.getElementById('productSelect');
+        productSelect.innerHTML = '<option value="">Select product</option>';
+        if (batchProductMap[batchId]) {
+            batchProductMap[batchId].forEach(i => {
+                const prod = allProducts.find(p => p.product_id === i.product_id) || {};
+                productSelect.innerHTML += `<option value="${i.product_id}" data-qty="${i.current_quantity}">${prod.product_name || i.product_id}</option>`;
+            });
+        }
+        document.getElementById('quantityInput').value = '';
+        document.getElementById('availableQty').textContent = '';
+    });
+    // When product changes, show available quantity
+    document.getElementById('productSelect').addEventListener('change', function() {
+        const selected = this.options[this.selectedIndex];
+        const qty = selected.getAttribute('data-qty');
+        document.getElementById('availableQty').textContent = qty ? `Available: ${qty}` : '';
+        document.getElementById('quantityInput').max = qty || '';
+    });
+    // Handle dispatch form submit
+    document.getElementById('dispatchForm').onsubmit = function(e) {
+        e.preventDefault();
+        const retailer_id = document.getElementById('retailerSelect').value;
+        const batch_id = document.getElementById('batchSelect').value;
+        const product_id = document.getElementById('productSelect').value;
+        const quantity = parseFloat(document.getElementById('quantityInput').value);
+        if (!retailer_id || !batch_id || !product_id || isNaN(quantity) || quantity <= 0) {
+            showMsg('Please fill all fields with valid values.', true);
+            return;
+        }
+        // Create dispatch request (pending approval)
+        fetch('http://localhost:8000/api/dispatch-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({
+                retailer_id: parseInt(retailer_id),
+                batch_id,
+                product_id: parseInt(product_id),
+                quantity
+            })
+        }).then(res => {
+            if (res.ok) {
+                showMsg('Dispatch request submitted for approval!', false);
+                this.reset();
+                loadPendingDispatches();
+            } else {
+                showMsg('Failed to submit dispatch request.', true);
+            }
+        });
+    };
+    // Show message
+    function showMsg(msg, isError) {
+        const el = document.getElementById('dispatchMsg');
+        el.innerHTML = `<div class='alert alert-${isError ? 'danger' : 'success'}'>${msg}</div>`;
+        setTimeout(() => { el.innerHTML = ''; }, 3000);
+    }
+    // Load pending dispatches
+    function loadPendingDispatches() {
+        fetch('http://localhost:8000/api/dispatch-requests?status=pending', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(requests => {
+                let html = '<table class="table table-bordered"><thead><tr><th>Retailer</th><th>Batch</th><th>Product</th><th>Qty</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+                requests.forEach(r => {
+                    const retailer = allRetailers.find(u => u.user_id === r.retailer_id) || {};
+                    const prod = allProducts.find(p => p.product_id === r.product_id) || {};
+                    html += `<tr><td>${retailer.username || r.retailer_id}</td><td>${r.batch_id}</td><td>${prod.product_name || r.product_id}</td><td>${r.quantity}</td><td>${r.status}</td><td><button class='btn btn-success btn-sm approveBtn' data-id='${r.id}'>Approve</button> <button class='btn btn-danger btn-sm rejectBtn' data-id='${r.id}'>Reject</button></td></tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('pendingDispatches').innerHTML = html;
+                // Attach approve/reject events
+                document.querySelectorAll('.approveBtn').forEach(btn => {
+                    btn.onclick = function() {
+                        approveDispatch(btn.getAttribute('data-id'), true);
+                    };
+                });
+                document.querySelectorAll('.rejectBtn').forEach(btn => {
+                    btn.onclick = function() {
+                        approveDispatch(btn.getAttribute('data-id'), false);
+                    };
+                });
+            });
+    }
+    // Approve/reject dispatch
+    function approveDispatch(id, approve) {
+        fetch('http://localhost:8000/api/dispatch-approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ id: parseInt(id), approve })
+        }).then(res => {
+            if (res.ok) {
+                showMsg(approve ? 'Dispatch approved!' : 'Dispatch rejected!', false);
+                loadPendingDispatches();
+            } else {
+                showMsg('Failed to update dispatch status.', true);
+            }
+        });
+    }
+    // Initial load
+    setTimeout(loadPendingDispatches, 1000);
+    </script>
+</body>
+</html>

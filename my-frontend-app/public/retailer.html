@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retailer Dashboard - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <style>
+        body { background: #f8fafc; padding-left: 220px; }
+        @media (max-width: 991.98px) {
+            #sidebar { left: -220px; transition: left 0.3s; }
+            body { padding-left: 0 !important; }
+            #sidebar.active { left: 0; }
+            #sidebar-backdrop { display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); z-index: 1039; }
+        }
+        @media (max-width: 767.98px) {
+            .dashboard-header, .dashboard-card, .card, .table-responsive { border-radius: 0.5rem !important; }
+            .dashboard-header { font-size: 1.1rem; }
+            .summary-icon { font-size: 1.5rem; }
+            .dashboard-card { margin-bottom: 1rem !important; }
+            .d-flex.justify-content-end.mb-3 { flex-direction: column !important; align-items: stretch !important; }
+            .d-flex.justify-content-end.mb-3 > * { margin-bottom: 0.5rem !important; width: 100%; }
+        }
+        .fab {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1050;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #38b6ff;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 4px 16px #0002;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .fab:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <div id="sidebar" class="d-flex flex-column flex-shrink-0 p-3 bg-light position-fixed" style="width: 220px; height: 100vh; left: 0; top: 0; z-index: 1040; box-shadow: 2px 0 8px #0001;">
+        <a href="#" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-decoration-none">
+            <span class="fs-4 fw-bold text-primary"><i class="fa-solid fa-cubes"></i> WMS</span>
+        </a>
+        <hr>
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li class="nav-item"><a href="retailer.html" class="nav-link active"><i class="fa-solid fa-gauge me-2"></i>Dashboard</a></li>
+            <li><a href="retailer-inventory.html" class="nav-link text-dark"><i class="fa fa-warehouse me-2"></i>My Inventory</a></li>
+            <li><a href="retailer-batches.html" class="nav-link text-dark"><i class="fa fa-layer-group me-2"></i>My Batches</a></li>
+            <li><a href="retailer-alerts.html" class="nav-link text-dark"><i class="fa fa-bell me-2"></i>My Alerts</a></li>
+            <li><a href="#" class="nav-link text-dark" data-bs-toggle="modal" data-bs-target="#requestStockModal"><i class="fa fa-plus-circle me-2"></i>Request Stock</a></li>
+            <li><a href="#" class="nav-link text-dark" data-bs-toggle="modal" data-bs-target="#profileModal"><i class="fa fa-user me-2"></i>Profile</a></li>
+            <li><a href="#" class="nav-link text-dark" data-bs-toggle="modal" data-bs-target="#supportModal"><i class="fa fa-question-circle me-2"></i>Support</a></li>
+        </ul>
+        <hr>
+        <button id="logoutBtnSidebar" class="btn btn-outline-danger w-100 mt-auto"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+    </div>
+    <div id="sidebar-backdrop" style="display:none;"></div>
+    <header class="dashboard-header text-center py-4 mb-4 position-relative">
+        <h1 class="fw-bold mb-0"><i class="fa-solid fa-warehouse me-2"></i>Retailer Dashboard</h1>
+        <button id="logoutBtn" class="btn btn-light logout-btn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+    </header>
+    <main class="container">
+        <div class="d-flex justify-content-end mb-3">
+            <a class="btn btn-outline-primary me-2" href="retailer-inventory.html"><i class="fa fa-warehouse"></i> My Inventory</a>
+            <a class="btn btn-outline-primary me-2" href="retailer-batches.html"><i class="fa fa-layer-group"></i> My Batches</a>
+            <a class="btn btn-outline-primary me-2" href="retailer-alerts.html"><i class="fa fa-bell"></i> My Alerts</a>
+            <button class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#requestStockModal"><i class="fa fa-plus-circle"></i> Request Stock</button>
+        </div>
+        <div id="retailer-summary" class="row g-4 mb-4"></div>
+        <div id="retailer-analytics" class="row mb-4"></div>
+        <div id="retailer-welcome"></div>
+        <div id="retailer-inventory"></div>
+        <div id="retailer-expiry"></div>
+        <div id="retailer-alerts"></div>
+        <div id="retailer-loader" class="text-center" style="display:none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        <!-- Floating Action Button for My Inventory -->
+        <button class="fab d-md-none" id="fabInventory" title="My Inventory"><i class="fa fa-warehouse"></i></button>
+        <!-- Request Stock Modal -->
+        <div class="modal fade" id="requestStockModal" tabindex="-1" aria-labelledby="requestStockModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="requestStockForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="requestStockModalLabel"><i class="fa fa-plus-circle"></i> Request Stock</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label for="requestProduct" class="form-label">Product</label>
+                    <select class="form-select" id="requestProduct" required></select>
+                  </div>
+                  <div class="mb-3">
+                    <label for="requestQuantity" class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="requestQuantity" min="1" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="requestComment" class="form-label">Comments</label>
+                    <textarea class="form-control" id="requestComment" rows="2"></textarea>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Send Request</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Profile Modal -->
+        <div class="modal fade" id="profileModal" tabindex="-1" aria-labelledby="profileModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="profileForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="profileModalLabel"><i class="fa fa-user"></i> Profile</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label for="profileUsername" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="profileUsername" readonly>
+                  </div>
+                  <div class="mb-3">
+                    <label for="profileEmail" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="profileEmail" readonly>
+                  </div>
+                  <div class="mb-3">
+                    <label for="profileName" class="form-label">Name</label>
+                    <input type="text" class="form-control" id="profileName">
+                  </div>
+                  <div class="mb-3">
+                    <label for="profilePhone" class="form-label">Phone</label>
+                    <input type="text" class="form-control" id="profilePhone">
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Support Modal -->
+        <div class="modal fade" id="supportModal" tabindex="-1" aria-labelledby="supportModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form id="supportForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="supportModalLabel"><i class="fa fa-question-circle"></i> Support</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label for="supportMessage" class="form-label">Message</label>
+                    <textarea class="form-control" id="supportMessage" rows="3" required></textarea>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary">Send</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+    </main>
+    <footer class="text-center py-4 mt-5 text-secondary small">
+        <i class="fa-solid fa-cube"></i> &copy; 2025 WMS
+    </footer>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/ux.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    // Sidebar mobile toggle
+    const sidebar = document.getElementById('sidebar');
+    const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+    // Hamburger for mobile
+    const sidebarToggle = document.createElement('button');
+    sidebarToggle.id = 'sidebarToggle';
+    sidebarToggle.className = 'btn btn-primary d-lg-none position-fixed';
+    sidebarToggle.style.top = '1rem';
+    sidebarToggle.style.left = '1rem';
+    sidebarToggle.style.zIndex = '1051';
+    sidebarToggle.innerHTML = '<i class="fa fa-bars"></i>';
+    document.body.appendChild(sidebarToggle);
+    if (sidebar && sidebarBackdrop && sidebarToggle) {
+        sidebarToggle.onclick = function() {
+            sidebar.classList.toggle('active');
+            sidebarBackdrop.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+        };
+        sidebarBackdrop.onclick = function() {
+            sidebar.classList.remove('active');
+            sidebarBackdrop.style.display = 'none';
+        };
+    }
+    // Logout button (sidebar)
+    document.getElementById('logoutBtnSidebar').onclick = function() {
+        localStorage.removeItem('access_token');
+        window.location.href = 'login.html';
+    };
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+        showLoader(true);
+        let productsMap = {};
+        let userObj = null;
+        function fetchProductsAndUser(callback) {
+            fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(products => {
+                    products.forEach(p => { productsMap[p.product_id] = p; });
+                    fetch('http://localhost:8000/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
+                        .then(res => res.json())
+                        .then(user => {
+                            userObj = user;
+                            if (user.role !== 'Retailer') {
+                                window.location.href = 'index.html';
+                                return;
+                            }
+                            document.getElementById('retailer-welcome').innerHTML = `<div class='alert alert-success shadow-sm'><i class='fa-solid fa-user'></i> Welcome, <b>${user.username}</b>!</div>`;
+                            if (callback) callback();
+                        })
+                        .catch(err => {
+                            showLoader(false);
+                            showToast('Failed to load user info. Please log in again.', 'danger');
+                        });
+                })
+                .catch(err => {
+                    showLoader(false);
+                    showToast('Failed to load products. Please log in again.', 'danger');
+                });
+        }
+        function refreshRetailerSections() {
+            if (!userObj) return;
+            // Inventory
+            fetch('http://localhost:8000/api/inventory', { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(data => {
+                    const myStock = data.filter(item => item.location == userObj.user_id);
+                    let html = `<h5 class='mb-3'><i class='fa-solid fa-boxes-stacked'></i> Your Assigned Stock</h5><div class='table-responsive'><table class='table table-hover align-middle'><thead><tr><th>Product</th><th>Batch ID</th><th>Qty</th><th>Image</th></tr></thead><tbody>`;
+                    let totalQty = 0;
+                    myStock.forEach(row => {
+                        const prod = productsMap[row.product_id] || {};
+                        html += `<tr><td>${prod.product_name || row.product_id}</td><td>${row.batch_id}</td><td>${row.current_quantity}</td><td>${prod.image_url ? `<img src='${prod.image_url}' alt='' width='40' class='rounded'>` : ''}</td></tr>`;
+                        totalQty += row.current_quantity;
+                    });
+                    html += '</tbody></table></div>';
+                    document.getElementById('retailer-inventory').innerHTML = html;
+                    // Summary card
+                    document.getElementById('retailer-summary').innerHTML = `<div class='col-md-4'><div class='card dashboard-card text-white bg-info mb-3'><div class='card-body text-center'><div class='summary-icon'><i class='fa-solid fa-cubes'></i></div><h5 class='card-title'>Total Stock</h5><p class='card-text fs-4 fw-bold'>${totalQty}</p></div></div></div>`;
+                })
+                .catch(err => {
+                    showLoader(false);
+                    showToast('Failed to load inventory.', 'danger');
+                });
+            // Near-expiry batches
+            fetch('http://localhost:8000/api/analytics/near-expiry-batches?days=15', { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(batches => {
+                    const myBatches = batches.filter(b => b.owner_id == userObj.user_id);
+                    if (myBatches.length > 0) {
+                        let html = `<h5 class='mb-3'><i class='fa-solid fa-triangle-exclamation text-warning'></i> Near-Expiry Batches (next 15 days)</h5><div class='table-responsive'><table class='table table-striped align-middle'><thead><tr><th>Batch ID</th><th>Product</th><th>Expiry</th><th>Qty</th><th>QC</th></tr></thead><tbody>`;
+                        myBatches.forEach(b => {
+                            const prod = productsMap[b.product_id] || {};
+                            html += `<tr><td>${b.batch_id}</td><td>${prod.product_name || b.product_id}</td><td>${b.expiry_date}</td><td>${b.current_quantity}</td><td>${b.qc_status}</td></tr>`;
+                        });
+                        html += '</tbody></table></div>';
+                        document.getElementById('retailer-expiry').innerHTML = html;
+                        // Add to summary
+                        document.getElementById('retailer-summary').innerHTML += `<div class='col-md-4'><div class='card dashboard-card text-white bg-warning mb-3'><div class='card-body text-center'><div class='summary-icon'><i class='fa-solid fa-hourglass-end'></i></div><h5 class='card-title'>Near-Expiry Batches</h5><p class='card-text fs-4 fw-bold'>${myBatches.length}</p></div></div></div>`;
+                    } else {
+                        document.getElementById('retailer-expiry').innerHTML = '';
+                    }
+                })
+                .catch(err => {
+                    showLoader(false);
+                    showToast('Failed to load near-expiry batches.', 'danger');
+                });
+            // Alerts
+            fetch('http://localhost:8000/api/alerts', { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(alerts => {
+                    const myAlerts = alerts.filter(a => a.user_id == userObj.user_id);
+                    if (myAlerts.length > 0) {
+                        let html = `<h5 class='mb-3'><i class='fa-solid fa-bell text-danger'></i> Your Alerts</h5><ul class='list-group'>`;
+                        myAlerts.forEach((a, idx) => {
+                            html += `<li class='list-group-item d-flex justify-content-between align-items-center'>${a.message} <span class='badge bg-${a.is_read ? 'secondary' : 'warning'}'>${a.is_read ? 'Read' : 'Unread'}</span><button class='btn btn-sm btn-outline-danger ms-2' onclick='this.parentElement.remove()'><i class='fa-solid fa-xmark'></i> Dismiss</button></li>`;
+                        });
+                        html += '</ul>';
+                        document.getElementById('retailer-alerts').innerHTML = html;
+                        // Add to summary
+                        document.getElementById('retailer-summary').innerHTML += `<div class='col-md-4'><div class='card dashboard-card text-white bg-danger mb-3'><div class='card-body text-center'><div class='summary-icon'><i class='fa-solid fa-bell'></i></div><h5 class='card-title'>Alerts</h5><p class='card-text fs-4 fw-bold'>${myAlerts.length}</p></div></div></div>`;
+                    } else {
+                        document.getElementById('retailer-alerts').innerHTML = '';
+                    }
+                    showLoader(false);
+                })
+                .catch(err => {
+                    showLoader(false);
+                    showToast('Failed to load alerts.', 'danger');
+                });
+        }
+        // FAB for My Inventory
+        const fabInventory = document.getElementById('fabInventory');
+        if (fabInventory) {
+            fabInventory.onclick = function() {
+                window.location.href = 'retailer-inventory.html';
+            };
+        }
+        fetchProductsAndUser(function() {
+            refreshRetailerSections();
+            setInterval(refreshRetailerSections, 10000); // auto-refresh every 10 seconds
+        });
+    });
+    // --- Chart.js Responsive Resize (if charts are added) ---
+    window.addEventListener('resize', () => {
+      if (typeof valuationChart !== 'undefined' && valuationChart) valuationChart.resize();
+      if (typeof categoryChart !== 'undefined' && categoryChart) categoryChart.resize();
+      if (typeof expiryChart !== 'undefined' && expiryChart) expiryChart.resize();
+    });
+    // --- Swipe Gesture for Card Navigation (Mobile) ---
+    let touchStartX = 0, touchEndX = 0;
+    const summaryRow = document.getElementById('retailer-summary');
+    if (summaryRow) {
+      summaryRow.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; });
+      summaryRow.addEventListener('touchend', e => {
+        touchEndX = e.changedTouches[0].screenX;
+        if (touchEndX < touchStartX - 50) summaryRow.scrollBy({left: 200, behavior: 'smooth'});
+        if (touchEndX > touchStartX + 50) summaryRow.scrollBy({left: -200, behavior: 'smooth'});
+      });
+    }
+    // --- Table Sort/Filter Controls ---
+    function addTableSortFilter(tableId) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+      const thead = table.querySelector('thead');
+      if (!thead) return;
+      // Add filter row
+      if (!table.querySelector('.filter-row')) {
+        const filterRow = document.createElement('tr');
+        filterRow.className = 'filter-row';
+        Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+          const th = document.createElement('th');
+          if (cell.textContent.trim() !== '') {
+            const input = document.createElement('input');
+            input.className = 'form-control form-control-sm';
+            input.placeholder = 'Filter';
+            input.oninput = function() {
+              const val = this.value.toLowerCase();
+              Array.from(table.tBodies[0].rows).forEach(row => {
+                row.style.display = row.cells[idx].textContent.toLowerCase().includes(val) ? '' : 'none';
+              });
+            };
+            th.appendChild(input);
+          }
+          filterRow.appendChild(th);
+        });
+        thead.appendChild(filterRow);
+      }
+      // Add sort on click
+      Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+        cell.style.cursor = 'pointer';
+        cell.onclick = function() {
+          const rows = Array.from(table.tBodies[0].rows);
+          const asc = !cell.classList.contains('sorted-asc');
+          rows.sort((a, b) => {
+            const v1 = a.cells[idx].textContent.trim();
+            const v2 = b.cells[idx].textContent.trim();
+            return asc ? v1.localeCompare(v2, undefined, {numeric:true}) : v2.localeCompare(v1, undefined, {numeric:true});
+          });
+          rows.forEach(r => table.tBodies[0].appendChild(r));
+          Array.from(thead.rows[0].cells).forEach(c => c.classList.remove('sorted-asc', 'sorted-desc'));
+          cell.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+        };
+      });
+    }
+    // Call after rendering tables
+    setTimeout(() => {
+      addTableSortFilter('retailer-inventory');
+      addTableSortFilter('retailer-expiry');
+    }, 1200);
+    // --- Retailer Analytics (Charts) ---
+    function renderRetailerAnalytics(myStock, productsMap, myBatches) {
+      // Inventory by Product Pie
+      const analyticsDiv = document.getElementById('retailer-analytics');
+      analyticsDiv.innerHTML = `<div class='col-md-6 mb-4'><div class='card p-3'><h6 class='fw-bold mb-2'><i class='fa-solid fa-chart-pie'></i> Inventory by Product</h6><canvas id='inventoryPieChart' height='180'></canvas></div></div><div class='col-md-6 mb-4'><div class='card p-3'><h6 class='fw-bold mb-2'><i class='fa-solid fa-hourglass-end'></i> Near-Expiry Batches</h6><canvas id='expiryBarChart' height='180'></canvas></div></div>`;
+      // Pie Chart
+      const pieCtx = document.getElementById('inventoryPieChart').getContext('2d');
+      const pieData = {};
+      myStock.forEach(row => {
+        const prod = productsMap[row.product_id] || {};
+        const name = prod.product_name || row.product_id;
+        pieData[name] = (pieData[name] || 0) + row.current_quantity;
+      });
+      new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(pieData),
+          datasets: [{
+            data: Object.values(pieData),
+            backgroundColor: ['#38b6ff','#ffc107','#28a745','#dc3545','#6f42c1','#4f8cff'],
+          }]
+        },
+        options: {responsive: true}
+      });
+      // Bar Chart for Near-Expiry
+      const barCtx = document.getElementById('expiryBarChart').getContext('2d');
+      new Chart(barCtx, {
+        type: 'bar',
+        data: {
+          labels: myBatches.map(b => b.batch_id),
+          datasets: [{
+            label: 'Qty',
+            data: myBatches.map(b => b.current_quantity),
+            backgroundColor: '#ffc107',
+          }]
+        },
+        options: {responsive: true, plugins: {legend: {display: false}}}
+      });
+    }
+    // --- Modal Logic ---
+    document.addEventListener('DOMContentLoaded', function() {
+      // Populate product dropdown in request stock modal
+      fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') } })
+        .then(res => res.json())
+        .then(products => {
+          const select = document.getElementById('requestProduct');
+          if (select) {
+            select.innerHTML = '<option value="">Select product</option>';
+            products.forEach(p => {
+              select.innerHTML += `<option value="${p.product_id}">${p.product_name}</option>`;
+            });
+          }
+        });
+      // Profile modal fill
+      document.getElementById('profileModal').addEventListener('show.bs.modal', function() {
+        fetch('http://localhost:8000/api/me', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') } })
+          .then(res => res.json())
+          .then(user => {
+            document.getElementById('profileUsername').value = user.username || '';
+            document.getElementById('profileEmail').value = user.email || '';
+            document.getElementById('profileName').value = user.name || '';
+            document.getElementById('profilePhone').value = user.phone || '';
+          });
+      });
+      // Request stock form submit
+      document.getElementById('requestStockForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const token = localStorage.getItem('access_token');
+        const product_id = document.getElementById('requestProduct').value;
+        const quantity = parseFloat(document.getElementById('requestQuantity').value);
+        const comment = document.getElementById('requestComment').value;
+        if (!product_id || isNaN(quantity) || quantity <= 0) {
+          alert('Please select a product and enter a valid quantity.');
+          return;
+        }
+        try {
+          const res = await fetch('http://localhost:8000/api/dispatch-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({
+              product_id: parseInt(product_id),
+              quantity,
+              comment
+            })
+          });
+          if (res.ok) {
+            alert('Stock request sent!');
+            document.getElementById('requestStockForm').reset();
+            var modal = bootstrap.Modal.getInstance(document.getElementById('requestStockModal'));
+            modal.hide();
+          } else {
+            const err = await res.json();
+            alert('Failed to send request: ' + (err.detail || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Network or server error.');
+        }
+      };
+      // Profile form submit
+      document.getElementById('profileForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const token = localStorage.getItem('access_token');
+        const name = document.getElementById('profileName').value;
+        const phone = document.getElementById('profilePhone').value;
+        try {
+          const res = await fetch('http://localhost:8000/api/me', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ name, phone })
+          });
+          if (res.ok) {
+            alert('Profile updated!');
+            var modal = bootstrap.Modal.getInstance(document.getElementById('profileModal'));
+            modal.hide();
+          } else {
+            const err = await res.json();
+            alert('Failed to update profile: ' + (err.detail || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Network or server error.');
+        }
+      };
+      // Support form submit
+      document.getElementById('supportForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const token = localStorage.getItem('access_token');
+        const message = document.getElementById('supportMessage').value;
+        if (!message) {
+          alert('Please enter a message.');
+          return;
+        }
+        try {
+          const res = await fetch('http://localhost:8000/api/alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ message })
+          });
+          if (res.ok) {
+            alert('Support message sent!');
+            document.getElementById('supportForm').reset();
+            var modal = bootstrap.Modal.getInstance(document.getElementById('supportModal'));
+            modal.hide();
+          } else {
+            const err = await res.json();
+            alert('Failed to send support message: ' + (err.detail || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Network or server error.');
+        }
+      };
+    });
+    // --- Patch: Call analytics after inventory and expiry loaded ---
+    function patchRetailerAnalytics(myStock, productsMap, myBatches) {
+      renderRetailerAnalytics(myStock, productsMap, myBatches);
+    }
+    // Patch into refreshRetailerSections
+    const origRefresh = refreshRetailerSections;
+    refreshRetailerSections = function() {
+      if (!userObj) return;
+      fetch('http://localhost:8000/api/inventory', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(res => res.json())
+        .then(data => {
+          const myStock = data.filter(item => item.location == userObj.user_id);
+          let html = `<h5 class='mb-3'><i class='fa-solid fa-boxes-stacked'></i> Your Assigned Stock</h5><div class='table-responsive'><table class='table table-hover align-middle'><thead><tr><th>Product</th><th>Batch ID</th><th>Qty</th><th>Image</th></tr></thead><tbody>`;
+          let totalQty = 0;
+          myStock.forEach(row => {
+            const prod = productsMap[row.product_id] || {};
+            html += `<tr><td>${prod.product_name || row.product_id}</td><td>${row.batch_id}</td><td>${row.current_quantity}</td><td>${prod.image_url ? `<img src='${prod.image_url}' alt='' width='40' class='rounded'>` : ''}</td></tr>`;
+            totalQty += row.current_quantity;
+          });
+          html += '</tbody></table></div>';
+          document.getElementById('retailer-inventory').innerHTML = html;
+          document.getElementById('retailer-summary').innerHTML = `<div class='col-md-4'><div class='card dashboard-card text-white bg-info mb-3'><div class='card-body text-center'><div class='summary-icon'><i class='fa-solid fa-cubes'></i></div><h5 class='card-title'>Total Stock</h5><p class='card-text fs-4 fw-bold'>${totalQty}</p></div></div></div>`;
+          // Near-expiry batches
+          fetch('http://localhost:8000/api/analytics/near-expiry-batches?days=15', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(batches => {
+              const myBatches = batches.filter(b => b.owner_id == userObj.user_id);
+              if (myBatches.length > 0) {
+                let html = `<h5 class='mb-3'><i class='fa-solid fa-triangle-exclamation text-warning'></i> Near-Expiry Batches (next 15 days)</h5><div class='table-responsive'><table class='table table-striped align-middle'><thead><tr><th>Batch ID</th><th>Product</th><th>Expiry</th><th>Qty</th><th>QC</th></tr></thead><tbody>`;
+                myBatches.forEach(b => {
+                  const prod = productsMap[b.product_id] || {};
+                  html += `<tr><td>${b.batch_id}</td><td>${prod.product_name || b.product_id}</td><td>${b.expiry_date}</td><td>${b.current_quantity}</td><td>${b.qc_status}</td></tr>`;
+                });
+                html += '</tbody></table></div>';
+                document.getElementById('retailer-expiry').innerHTML = html;
+                document.getElementById('retailer-summary').innerHTML += `<div class='col-md-4'><div class='card dashboard-card text-white bg-warning mb-3'><div class='card-body text-center'><div class='summary-icon'><i class='fa-solid fa-hourglass-end'></i></div><h5 class='card-title'>Near-Expiry Batches</h5><p class='card-text fs-4 fw-bold'>${myBatches.length}</p></div></div></div>`;
+              } else {
+                document.getElementById('retailer-expiry').innerHTML = '';
+              }
+              // Patch: Render analytics after both inventory and expiry loaded
+              patchRetailerAnalytics(myStock, productsMap, myBatches);
+            });
+        });
+      // ...existing code...
+    };
+    </script>
+    <script>
+    // ...existing code...
+    </script>
+</body>
+</html>

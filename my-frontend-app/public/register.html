@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - WMS</title>
+    <link href="/static/css/styles.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h4 class="card-title mb-4">Register</h4>
+                        <form id="registerForm">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password</label>
+                                <input type="password" class="form-control" id="password" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="role" class="form-label">Role</label>
+                                <select class="form-control" id="role" required>
+                                    <option value="">Loading...</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Register</button>
+                        </form>
+                        <div id="registerError" class="text-danger mt-3" style="display:none;"></div>
+                        <div id="registerSuccess" class="text-success mt-3" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/main.js"></script>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fetch roles dynamically from backend
+        fetch('http://localhost:8000/api/roles')
+            .then(res => res.json())
+            .then(data => {
+                const roleSelect = document.getElementById('role');
+                roleSelect.innerHTML = '';
+                if (data.roles && Array.isArray(data.roles)) {
+                    data.roles.forEach(role => {
+                        const opt = document.createElement('option');
+                        opt.value = role;
+                        opt.textContent = role;
+                        roleSelect.appendChild(opt);
+                    });
+                } else {
+                    roleSelect.innerHTML = '<option value="">No roles found</option>';
+                }
+            })
+            .catch(() => {
+                const roleSelect = document.getElementById('role');
+                roleSelect.innerHTML = '<option value="">Error loading roles</option>';
+            });
+
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            const errorDiv = document.getElementById('registerError');
+            const successDiv = document.getElementById('registerSuccess');
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            try {
+                const res = await fetch('http://localhost:8000/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password, role })
+                });
+                if (res.ok) {
+                    successDiv.textContent = 'Registration successful! You can now log in.';
+                    successDiv.style.display = 'block';
+                    document.getElementById('registerForm').reset();
+                } else {
+                    const data = await res.json();
+                    errorDiv.textContent = data.detail || 'Registration failed.';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                errorDiv.textContent = 'Network error.';
+                errorDiv.style.display = 'block';
+            }
+        });
+    });
+    </script>
+</body>
+</html>

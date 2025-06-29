@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retailer Inventory - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+    body { background: #f8fafc; }
+    @media (max-width: 767.98px) {
+        .dashboard-header, .dashboard-card, .card, .table-responsive { border-radius: 0.5rem !important; }
+        .dashboard-header { font-size: 1.1rem; }
+        .summary-icon { font-size: 1.5rem; }
+        .dashboard-card { margin-bottom: 1rem !important; }
+        .d-flex.justify-content-end.mb-3 { flex-direction: column !important; align-items: stretch !important; }
+        .d-flex.justify-content-end.mb-3 > * { margin-bottom: 0.5rem !important; width: 100%; }
+    }
+    .fab {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 1050;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #38b6ff;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        box-shadow: 0 4px 16px #0002;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .fab:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h2 class="mb-4">My Inventory</h2>
+        <div id="inventoryTable"></div>
+        <a href="retailer.html" class="btn btn-secondary mt-3">Back to Dashboard</a>
+        <div class="mb-4">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addRetailerInventoryModal"><i class="fa fa-plus"></i> Add Inventory</button>
+        </div>
+    </div>
+    <!-- Add Inventory Modal -->
+    <div class="modal fade" id="addRetailerInventoryModal" tabindex="-1" aria-labelledby="addRetailerInventoryModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="retailerInventoryForm">
+            <div class="modal-header">
+              <h5 class="modal-title" id="addRetailerInventoryModalLabel"><i class="fa fa-warehouse"></i> Add Inventory</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="retailerProductSelect" class="form-label">Product</label>
+                <select class="form-select" id="retailerProductSelect" required></select>
+              </div>
+              <div class="mb-3">
+                <label for="retailerBatchId" class="form-label">Batch ID</label>
+                <input type="text" class="form-control" id="retailerBatchId" required>
+              </div>
+              <div class="mb-3">
+                <label for="retailerMfgDate" class="form-label">Manufacturing Date</label>
+                <input type="date" class="form-control" id="retailerMfgDate" required>
+              </div>
+              <div class="mb-3">
+                <label for="retailerExpiryDate" class="form-label">Expiry Date</label>
+                <input type="date" class="form-control" id="retailerExpiryDate" required>
+                <span id="retailerExpiryPreview" class="small text-secondary ms-2"></span>
+              </div>
+              <div class="mb-3">
+                <label for="retailerQuantity" class="form-label">Quantity</label>
+                <input type="number" class="form-control" id="retailerQuantity" min="0.01" step="0.01" required>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Add</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="container py-4">
+        <h2 class="mb-4">My Inventory</h2>
+        <div id="inventoryTable"></div>
+        <a href="retailer.html" class="btn btn-secondary mt-3">Back to Dashboard</a>
+        <div class="mb-4">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addRetailerInventoryModal"><i class="fa fa-plus"></i> Add Inventory</button>
+        </div>
+    </div>
+    <!-- Floating Action Button for Add Inventory (example) -->
+    <button class="fab d-md-none" id="fabAddInventory" title="Add Inventory"><i class="fa fa-plus"></i></button>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        let productsMap = {};
+        let productMaster = [];
+        fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(products => {
+                productMaster = products;
+                products.forEach(p => { productsMap[p.product_id] = p; });
+                // Populate product dropdown in modal
+                const retailerProductSelect = document.getElementById('retailerProductSelect');
+                if (retailerProductSelect) {
+                    retailerProductSelect.innerHTML = '<option value="">Select Product</option>';
+                    products.forEach(p => {
+                        retailerProductSelect.innerHTML += `<option value="${p.product_id}" data-expiry="${p.expiry_period_days}">${p.product_name}</option>`;
+                    });
+                }
+                // Expiry auto-calc logic
+                const mfgInput = document.getElementById('retailerMfgDate');
+                const expiryInput = document.getElementById('retailerExpiryDate');
+                const expiryPreview = document.getElementById('retailerExpiryPreview');
+                function updateExpiryPreview() {
+                    const selected = retailerProductSelect.options[retailerProductSelect.selectedIndex];
+                    const expiryDays = parseInt(selected.getAttribute('data-expiry'));
+                    const mfgDate = mfgInput.value;
+                    if (expiryDays && mfgDate) {
+                        const mfg = new Date(mfgDate);
+                        mfg.setDate(mfg.getDate() + expiryDays);
+                        const yyyy = mfg.getFullYear();
+                        const mm = String(mfg.getMonth() + 1).padStart(2, '0');
+                        const dd = String(mfg.getDate()).padStart(2, '0');
+                        const expiryDate = `${yyyy}-${mm}-${dd}`;
+                        expiryInput.value = expiryDate;
+                        expiryPreview.textContent = `Expiry: ${expiryDate}`;
+                        // Highlight if near expiry (within 15 days)
+                        const today = new Date();
+                        const expiryObj = new Date(expiryDate);
+                        const diffDays = Math.ceil((expiryObj - today) / (1000 * 60 * 60 * 24));
+                        expiryPreview.classList.remove('text-danger', 'text-warning', 'text-secondary');
+                        if (diffDays <= 15) {
+                            expiryPreview.classList.add('text-danger');
+                            expiryPreview.textContent += ' (Near expiry!)';
+                        } else if (diffDays <= 30) {
+                            expiryPreview.classList.add('text-warning');
+                        } else {
+                            expiryPreview.classList.add('text-secondary');
+                        }
+                    } else {
+                        expiryPreview.textContent = '';
+                        expiryPreview.className = 'small text-secondary ms-2';
+                    }
+                }
+                retailerProductSelect.addEventListener('change', updateExpiryPreview);
+                mfgInput.addEventListener('input', updateExpiryPreview);
+            });
+        // FAB for Add Inventory (example, you can link to a modal or form)
+        const fabAddInventory = document.getElementById('fabAddInventory');
+        if (fabAddInventory) {
+            fabAddInventory.onclick = function() {
+                var modal = new bootstrap.Modal(document.getElementById('addRetailerInventoryModal'));
+                modal.show();
+            };
+        }
+        // --- Table Sort/Filter Controls ---
+        function addTableSortFilter(tableId) {
+          const table = document.getElementById(tableId);
+          if (!table) return;
+          const thead = table.querySelector('thead');
+          if (!thead) return;
+          // Add filter row
+          if (!table.querySelector('.filter-row')) {
+            const filterRow = document.createElement('tr');
+            filterRow.className = 'filter-row';
+            Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+              const th = document.createElement('th');
+              if (cell.textContent.trim() !== '') {
+                const input = document.createElement('input');
+                input.className = 'form-control form-control-sm';
+                input.placeholder = 'Filter';
+                input.oninput = function() {
+                  const val = this.value.toLowerCase();
+                  Array.from(table.tBodies[0].rows).forEach(row => {
+                    row.style.display = row.cells[idx].textContent.toLowerCase().includes(val) ? '' : 'none';
+                  });
+                };
+                th.appendChild(input);
+              }
+              filterRow.appendChild(th);
+            });
+            thead.appendChild(filterRow);
+          }
+          // Add sort on click
+          Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+            cell.style.cursor = 'pointer';
+            cell.onclick = function() {
+              const rows = Array.from(table.tBodies[0].rows);
+              const asc = !cell.classList.contains('sorted-asc');
+              rows.sort((a, b) => {
+                const v1 = a.cells[idx].textContent.trim();
+                const v2 = b.cells[idx].textContent.trim();
+                return asc ? v1.localeCompare(v2, undefined, {numeric:true}) : v2.localeCompare(v1, undefined, {numeric:true});
+              });
+              rows.forEach(r => table.tBodies[0].appendChild(r));
+              Array.from(thead.rows[0].cells).forEach(c => c.classList.remove('sorted-asc', 'sorted-desc'));
+              cell.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+            };
+          });
+        }
+        // Call after rendering tables
+        setTimeout(() => {
+          addTableSortFilter('inventoryTable');
+        }, 1200);
+        // Expiry auto-calc logic for Add Inventory modal
+        function updateRetailerExpiryPreview() {
+            const productSelect = document.getElementById('retailerProductSelect');
+            const mfgDateInput = document.getElementById('retailerMfgDate');
+            const expiryInput = document.getElementById('retailerExpiryDate');
+            if (!productSelect || !mfgDateInput || !expiryInput) return;
+            const selected = productSelect.options[productSelect.selectedIndex];
+            const expiryDays = parseInt(selected.getAttribute('data-expiry'));
+            const mfgDate = mfgDateInput.value;
+            if (expiryDays && mfgDate) {
+                const mfg = new Date(mfgDate);
+                mfg.setDate(mfg.getDate() + expiryDays);
+                const yyyy = mfg.getFullYear();
+                const mm = String(mfg.getMonth() + 1).padStart(2, '0');
+                const dd = String(mfg.getDate()).padStart(2, '0');
+                const expiryDate = `${yyyy}-${mm}-${dd}`;
+                expiryInput.value = expiryDate;
+            }
+        }
+        document.getElementById('retailerMfgDate').addEventListener('input', updateRetailerExpiryPreview);
+        document.getElementById('retailerProductSelect').addEventListener('change', updateRetailerExpiryPreview);
+        // On form submit, always send expiry value
+        const retailerInventoryForm = document.getElementById('retailerInventoryForm');
+        if (retailerInventoryForm) {
+            retailerInventoryForm.onsubmit = async function(e) {
+                e.preventDefault();
+                updateRetailerExpiryPreview(); // Ensure expiry is set
+                const token = localStorage.getItem('access_token');
+                const product_id = document.getElementById('retailerProductSelect').value;
+                const batch_id = document.getElementById('retailerBatchId').value.trim();
+                const mfg_date = document.getElementById('retailerMfgDate').value;
+                const expiry_date = document.getElementById('retailerExpiryDate').value;
+                const quantity = parseFloat(document.getElementById('retailerQuantity').value);
+                if (!product_id || !batch_id || !mfg_date || !expiry_date || isNaN(quantity) || quantity <= 0) {
+                    showWmsToast('Please fill all fields with valid values.', 'danger');
+                    return;
+                }
+                try {
+                    const res = await fetch('http://localhost:8000/api/inventory', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                        body: JSON.stringify({
+                            product_id: parseInt(product_id),
+                            batch_id,
+                            location: 'retailer_' + (localStorage.getItem('user_id') || ''),
+                            current_quantity: quantity,
+                            manufacturing_date: mfg_date,
+                            expiry_date: expiry_date
+                        })
+                    });
+                    if (res.ok) {
+                        showWmsToast('Inventory added!', 'success');
+                        retailerInventoryForm.reset();
+                        var modal = bootstrap.Modal.getInstance(document.getElementById('addRetailerInventoryModal'));
+                        modal.hide();
+                        setTimeout(() => window.location.reload(), 1200);
+                    } else {
+                        showWmsToast('Failed to add inventory.', 'danger');
+                    }
+                } catch (err) {
+                    showWmsToast('Network or server error.', 'danger');
+                }
+            };
+        }
+    </script>
+</body>
+</html>

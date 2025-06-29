@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retailer Batches - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+    body { background: #f8fafc; }
+    @media (max-width: 767.98px) {
+        .dashboard-header, .dashboard-card, .card, .table-responsive { border-radius: 0.5rem !important; }
+        .dashboard-header { font-size: 1.1rem; }
+        .summary-icon { font-size: 1.5rem; }
+        .dashboard-card { margin-bottom: 1rem !important; }
+        .d-flex.justify-content-end.mb-3 { flex-direction: column !important; align-items: stretch !important; }
+        .d-flex.justify-content-end.mb-3 > * { margin-bottom: 0.5rem !important; width: 100%; }
+    }
+    .fab {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 1050;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #38b6ff;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        box-shadow: 0 4px 16px #0002;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .fab:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h2 class="mb-4">My Batches</h2>
+        <div id="batchTable"></div>
+        <a href="retailer.html" class="btn btn-secondary mt-3">Back to Dashboard</a>
+    </div>
+    <!-- Floating Action Button for Add Batch (example) -->
+    <button class="fab d-md-none" id="fabAddBatch" title="Add Batch"><i class="fa fa-plus"></i></button>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        let productsMap = {};
+        fetch('http://localhost:8000/api/products', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(products => {
+                products.forEach(p => { productsMap[p.product_id] = p; });
+                fetch('http://localhost:8000/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
+                    .then(res => res.json())
+                    .then(user => {
+                        fetch('http://localhost:8000/api/batches', { headers: { 'Authorization': 'Bearer ' + token } })
+                            .then(res => res.json())
+                            .then(batches => {
+                                // Only show batches owned by this retailer
+                                const myBatches = batches.filter(b => b.owner_type === 'Retailer' && b.owner_id === user.user_id);
+                                let html = '<table class="table table-bordered"><thead><tr><th>Batch ID</th><th>Product</th><th>Mfg Date</th><th>Expiry</th><th>Qty</th><th>QC</th></tr></thead><tbody>';
+                                myBatches.forEach(b => {
+                                    const prod = productsMap[b.product_id] || {};
+                                    html += `<tr><td>${b.batch_id}</td><td>${prod.product_name || b.product_id}</td><td>${b.manufacturing_date || ''}</td><td>${b.expiry_date}</td><td>${b.current_quantity}</td><td>${b.qc_status}</td></tr>`;
+                                });
+                                html += '</tbody></table>';
+                                document.getElementById('batchTable').innerHTML = html;
+                            });
+                    });
+            });
+    });
+    // FAB for Add Batch (example, you can link to a modal or form)
+    const fabAddBatch = document.getElementById('fabAddBatch');
+    if (fabAddBatch) {
+        fabAddBatch.onclick = function() {
+            alert('Show add batch modal or form here!');
+        };
+    }
+    // --- Table Sort/Filter Controls ---
+    function addTableSortFilter(tableId) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+      const thead = table.querySelector('thead');
+      if (!thead) return;
+      // Add filter row
+      if (!table.querySelector('.filter-row')) {
+        const filterRow = document.createElement('tr');
+        filterRow.className = 'filter-row';
+        Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+          const th = document.createElement('th');
+          if (cell.textContent.trim() !== '') {
+            const input = document.createElement('input');
+            input.className = 'form-control form-control-sm';
+            input.placeholder = 'Filter';
+            input.oninput = function() {
+              const val = this.value.toLowerCase();
+              Array.from(table.tBodies[0].rows).forEach(row => {
+                row.style.display = row.cells[idx].textContent.toLowerCase().includes(val) ? '' : 'none';
+              });
+            };
+            th.appendChild(input);
+          }
+          filterRow.appendChild(th);
+        });
+        thead.appendChild(filterRow);
+      }
+      // Add sort on click
+      Array.from(thead.rows[0].cells).forEach((cell, idx) => {
+        cell.style.cursor = 'pointer';
+        cell.onclick = function() {
+          const rows = Array.from(table.tBodies[0].rows);
+          const asc = !cell.classList.contains('sorted-asc');
+          rows.sort((a, b) => {
+            const v1 = a.cells[idx].textContent.trim();
+            const v2 = b.cells[idx].textContent.trim();
+            return asc ? v1.localeCompare(v2, undefined, {numeric:true}) : v2.localeCompare(v1, undefined, {numeric:true});
+          });
+          rows.forEach(r => table.tBodies[0].appendChild(r));
+          Array.from(thead.rows[0].cells).forEach(c => c.classList.remove('sorted-asc', 'sorted-desc'));
+          cell.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+        };
+      });
+    }
+    // Call after rendering tables
+    setTimeout(() => {
+      addTableSortFilter('batchTable');
+    }, 1200);
+    </script>
+</body>
+</html>

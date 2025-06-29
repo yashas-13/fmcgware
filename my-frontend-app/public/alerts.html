@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerts - WMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container py-4">
+        <h2 class="mb-4">Alerts</h2>
+        <div id="alertsTable"></div>
+        <a href="distributor.html" class="btn btn-secondary mt-3">Back to Dashboard</a>
+        <div class="mb-4">
+            <a class="btn btn-outline-info me-2" href="#" id="viewBatchGroupsBtn"><i class="fa fa-layer-group"></i> View Batch Groups</a>
+            <input type="text" id="batchReportInput" class="form-control d-inline-block w-auto" placeholder="Batch ID for Report">
+            <button class="btn btn-outline-primary ms-2" id="batchReportBtn">Batch Report</button>
+        </div>
+        <div id="batchGroupsSection" class="mb-4"></div>
+        <div id="batchReportSection" class="mb-4"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Redirect to login if not authenticated
+    if (!localStorage.getItem('access_token')) {
+        window.location.href = 'login.html';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = localStorage.getItem('access_token');
+        fetch('http://localhost:8000/api/alerts', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(res => res.json())
+            .then(alerts => {
+                let html = '<table class="table table-bordered"><thead><tr><th>ID</th><th>User ID</th><th>Message</th><th>Read</th><th>Created At</th><th>Actions</th></tr></thead><tbody>';
+                alerts.forEach(a => {
+                    html += `<tr data-alert-id="${a.alert_id}"><td>${a.alert_id}</td><td>${a.user_id}</td><td>${a.message}</td><td>${a.is_read ? 'Yes' : 'No'}</td><td>${a.created_at}</td><td><button class='btn btn-sm btn-primary editAlertBtn'>Edit</button> <button class='btn btn-sm btn-danger deleteAlertBtn'>Delete</button></td></tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('alertsTable').innerHTML = html;
+                // Attach CRUD event listeners
+                document.querySelectorAll('.editAlertBtn').forEach(btn => {
+                    btn.onclick = function() {
+                        const row = btn.closest('tr');
+                        const alertId = row.getAttribute('data-alert-id');
+                        alert('Edit alert ' + alertId + ' (implement modal or inline form)');
+                    };
+                });
+                document.querySelectorAll('.deleteAlertBtn').forEach(btn => {
+                    btn.onclick = async function() {
+                        const row = btn.closest('tr');
+                        const alertId = row.getAttribute('data-alert-id');
+                        if (confirm('Are you sure you want to delete alert ' + alertId + '?')) {
+                            const res = await fetch('http://localhost:8000/api/alerts/' + alertId, {
+                                method: 'DELETE',
+                                headers: { 'Authorization': 'Bearer ' + token }
+                            });
+                            if (res.ok) {
+                                row.remove();
+                            } else {
+                                alert('Failed to delete alert.');
+                            }
+                        }
+                    };
+                });
+            });
+        // Batch Groups
+        document.getElementById('viewBatchGroupsBtn').onclick = function(e) {
+            e.preventDefault();
+            fetch('http://localhost:8000/api/batch-groups', { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(groups => {
+                    let html = '<h5>Batch Groups</h5>';
+                    groups.forEach(g => {
+                        html += `<div class='card mb-2'><div class='card-header'>Batch: <b>${g.batch_id}</b> | Mfg: ${g.manufacturing_date || ''} | Exp: ${g.expiry_date || ''}</div><div class='card-body'><ul>`;
+                        g.products.forEach(p => {
+                            html += `<li>Product: ${p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                        });
+                        html += '</ul></div></div>';
+                    });
+                    document.getElementById('batchGroupsSection').innerHTML = html;
+                });
+        };
+        // Batch Report
+        document.getElementById('batchReportBtn').onclick = function() {
+            const batchId = document.getElementById('batchReportInput').value.trim();
+            if (!batchId) return showWmsToast('Enter a batch ID', 'warning');
+            fetch('http://localhost:8000/api/batch-report/' + batchId, { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(res => res.json())
+                .then(report => {
+                    let html = `<h5>Batch Report for <b>${report.batch_id}</b></h5>`;
+                    html += '<b>Products:</b><ul>';
+                    report.products.forEach(p => {
+                        html += `<li>Product: ${p.product_id}, Qty: ${p.current_quantity}, Owner: ${p.owner_type}</li>`;
+                    });
+                    html += '</ul><b>Inventory:</b><ul>';
+                    report.inventory.forEach(i => {
+                        html += `<li>Product: ${i.product_id}, Location: ${i.location}, Qty: ${i.current_quantity}</li>`;
+                    });
+                    html += '</ul><b>Dispatches:</b><ul>';
+                    report.dispatches.forEach(d => {
+                        html += `<li>Product: ${d.product_id}, Retailer: ${d.location}, Qty: ${d.current_quantity}</li>`;
+                    });
+                    html += '</ul>';
+                    document.getElementById('batchReportSection').innerHTML = html;
+                });
+        };
+    });
+    </script>
+</body>
+</html>
